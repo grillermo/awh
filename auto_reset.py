@@ -9,6 +9,7 @@ import base64
 import cv2
 import numpy as np
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -22,6 +23,15 @@ TAPO_PASSWORD = os.environ.get("TAPO_PASSWORD", "2qEP@Pxiy32*qtd")
 # Crop coords for the circular display (from crop_display.py, tuned for 640x480)
 # Expressed as fractions so resolution changes don't break them
 DISPLAY_CROP = (0.637, 0.748, 0.682, 0.855)  # left, top, right, bottom
+
+# Hardcoded quad corners relative to the cropped display region
+# (top-left, top-right, bottom-right, bottom-left) — detected once via detect_perspective.py
+DISPLAY_QUAD_REL = np.array([
+    [0.2759, 0.2895],
+    [0.7931, 0.1316],
+    [0.7586, 0.6579],
+    [0.2069, 0.8421],
+], dtype=np.float32)
 
 
 def capture_webcam(seconds=2):
@@ -61,61 +71,72 @@ def crop_to_screen(frames, coords=DISPLAY_CROP):
 
 
 def fix_perspective(frames):
-    """
-    For each frame find the largest quadrilateral contour (the display border),
-    then warp it to a flat square for easier OCR.
-    Falls back to original crop if contour detection fails.
-    """
-    print(f"[perspective] Processing {len(frames)} frames")
     results = []
-    for i, frame in enumerate(frames):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, 30, 100)
-
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            print(f"[perspective] Frame {i}: no contours, using raw crop")
-            results.append(frame)
-            continue
-
-        # Largest contour by area
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)
-        quad = None
-        for cnt in contours:
-            peri = cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-            if len(approx) == 4:
-                quad = approx
-                break
-
-        if quad is None:
-            print(f"[perspective] Frame {i}: no quad found, using raw crop")
-            results.append(frame)
-            continue
-
-        pts = quad.reshape(4, 2).astype(np.float32)
-        # Order: top-left, top-right, bottom-right, bottom-left
-        rect = _order_points(pts)
+    for frame in frames:
+        h, w = frame.shape[:2]
+        src = DISPLAY_QUAD_REL * np.array([w, h], dtype=np.float32)
         w_out = h_out = 200
         dst = np.array([[0, 0], [w_out - 1, 0], [w_out - 1, h_out - 1], [0, h_out - 1]], dtype=np.float32)
-        M = cv2.getPerspectiveTransform(rect, dst)
-        warped = cv2.warpPerspective(frame, M, (w_out, h_out))
-        print(f"[perspective] Frame {i}: warped to {warped.shape}")
-        results.append(warped)
-
+        M = cv2.getPerspectiveTransform(src, dst)
+        results.append(cv2.warpPerspective(frame, M, (w_out, h_out)))
     return results
 
 
-def _order_points(pts):
-    rect = np.zeros((4, 2), dtype=np.float32)
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]   # top-left
-    rect[2] = pts[np.argmax(s)]   # bottom-right
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]  # top-right
-    rect[3] = pts[np.argmax(diff)]  # bottom-left
-    return rect
+def _frame_to_b64(frame):
+    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    return base64.b64encode(buf).decode()
+
+
+def append_error_html(raw_frame, cropped_frame, fixed_frame, ocr_text, path="debug/errors.html"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    raw_b64 = _frame_to_b64(raw_frame)
+    crop_b64 = _frame_to_b64(cropped_frame)
+    fixed_b64 = _frame_to_b64(fixed_frame)
+
+    new_row = f"""
+        <tr>
+          <td class="idx">{ts}</td>
+          <td><img src="data:image/jpeg;base64,{raw_b64}"></td>
+          <td><img src="data:image/jpeg;base64,{crop_b64}"></td>
+          <td><img src="data:image/jpeg;base64,{fixed_b64}"></td>
+          <td style="color:#c0392b;font-weight:bold">{ocr_text}</td>
+        </tr>"""
+
+    if os.path.exists(path):
+        content = open(path).read()
+        content = content.replace("<tbody>", "<tbody>" + new_row, 1)
+    else:
+        content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Water Heater Errors</title>
+<style>
+  body {{ font-family: monospace; background: #111; color: #eee; margin: 0; padding: 16px; }}
+  h1 {{ margin: 0 0 4px; }}
+  table {{ border-collapse: collapse; }}
+  th, td {{ padding: 4px 8px; border: 1px solid #333; vertical-align: middle; text-align: center; }}
+  th {{ background: #222; }}
+  td.idx {{ color: #888; font-size: 0.85em; white-space: nowrap; }}
+  img {{ max-height: 120px; display: block; }}
+</style>
+</head>
+<body>
+<h1>Water Heater Errors</h1>
+<table>
+  <thead>
+    <tr><th>Timestamp</th><th>Raw</th><th>Cropped</th><th>Perspective fixed</th><th>OCR text</th></tr>
+  </thead>
+  <tbody>{new_row}
+  </tbody>
+</table>
+</body>
+</html>"""
+
+    with open(path, "w") as f:
+        f.write(content)
+    print(f"[html] Error appended → {path}")
 
 
 def error_showing_on_stream(frames):
@@ -124,7 +145,6 @@ def error_showing_on_stream(frames):
     Error state = first non-empty text does NOT begin with a digit.
     Returns (is_error: bool, ocr_results: list[dict])
     """
-    import re
     import easyocr
     print("[ocr] Initialising EasyOCR reader (first call downloads model if needed)")
     reader = easyocr.Reader(["en"], gpu=False, verbose=False)
@@ -144,11 +164,6 @@ def error_showing_on_stream(frames):
 
     print("[ocr] All frames gave empty OCR → treating as no error")
     return False, []
-
-
-def _frame_to_b64(frame):
-    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-    return base64.b64encode(buf).decode()
 
 
 def save_debug_html(raw_frames, cropped_frames, fixed_frames, ocr_results, is_error, path="debug/index.html"):
@@ -259,6 +274,8 @@ def main():
 
     if is_error:
         print("[main] Error detected → resetting P100")
+        fidx = ocr_results[0]["frame_idx"]
+        append_error_html(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
         reset_tapo100()
     else:
         print("[main] No error → nothing to do")
