@@ -4,17 +4,20 @@ Auto water heater reset.
 Captures webcam stream, detects error on display, runs macOS shortcut.
 """
 
+import asyncio
 import base64
 import cv2
 import numpy as np
 import os
-import subprocess
 import sys
 import time
 from datetime import datetime
+from tapo import ApiClient
 
 RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream2"
-SHORTCUT_NAME = "resetear calentador"
+TAPO_IP = "192.168.1.86"
+TAPO_EMAIL = os.environ.get("TAPO_EMAIL", "guillermo.siliceo@gmail.com")
+TAPO_PASSWORD = os.environ.get("TAPO_PASSWORD", "2qEP@Pxiy32*qtd")
 
 # Crop coords for the circular display (from crop_display.py, tuned for 640x480)
 # Expressed as fractions so resolution changes don't break them
@@ -222,14 +225,24 @@ def save_debug_html(raw_frames, cropped_frames, fixed_frames, ocr_results, is_er
     print(f"[html] Saved {path} ({len(html) // 1024} KB)")
 
 
-def run_shortcut(name):
-    cmd = ["shortcuts", "run", name]
-    print(f"[shortcut] Running macOS shortcut: {name!r}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"[shortcut] ERROR: {result.stderr.strip()}", file=sys.stderr)
-    else:
-        print("[shortcut] Shortcut executed successfully")
+async def _reset_tapo_async():
+    client = ApiClient(TAPO_EMAIL, TAPO_PASSWORD)
+    device = await client.p100(TAPO_IP)
+    print(f"[tapo] Turning off {TAPO_IP}")
+    await device.off()
+    print("[tapo] Waiting 10 seconds")
+    await asyncio.sleep(10)
+    print(f"[tapo] Turning on {TAPO_IP}")
+    await device.on()
+    print("[tapo] Reset complete")
+
+
+def reset_tapo100():
+    print("[tapo] Resetting P100 plug")
+    try:
+        asyncio.run(_reset_tapo_async())
+    except Exception as e:
+        print(f"[tapo] ERROR: {e}", file=sys.stderr)
 
 
 def main():
@@ -245,8 +258,8 @@ def main():
     save_debug_html(frames, cropped, fixed, ocr_results, is_error)
 
     if is_error:
-        print("[main] Error detected → running shortcut")
-        run_shortcut(SHORTCUT_NAME)
+        print("[main] Error detected → resetting P100")
+        reset_tapo100()
     else:
         print("[main] No error → nothing to do")
 
