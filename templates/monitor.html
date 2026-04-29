@@ -107,8 +107,24 @@
       padding: 12px 14px;
       line-height: 1.5;
     }
-    @media (max-width: 860px) {
+    @media (max-width: 860px) and (orientation: portrait) {
       .layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) and (orientation: landscape) {
+      body {
+        padding: 12px;
+      }
+      .layout {
+        grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+        gap: 12px;
+      }
+      .panel {
+        padding: 12px;
+        min-height: 0;
+      }
+      .topbar {
+        margin-bottom: 12px;
+      }
     }
   </style>
 </head>
