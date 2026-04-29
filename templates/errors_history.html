@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Water Heater Errors</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #111;
+      color: #eee;
+      margin: 0;
+      padding: 16px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.2rem;
+    }
+    p {
+      margin: 0 0 16px;
+      color: #999;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      padding: 6px 8px;
+      border: 1px solid #333;
+      vertical-align: middle;
+      text-align: center;
+    }
+    th {
+      background: #222;
+    }
+    td.idx {
+      color: #888;
+      font-size: 0.85em;
+      white-space: nowrap;
+    }
+    td.ocr {
+      color: #f87171;
+      font-weight: bold;
+      min-width: 180px;
+    }
+    img {
+      max-height: 120px;
+      display: block;
+      margin: 0 auto;
+    }
+    .empty {
+      background: #171717;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      color: #bbb;
+    }
+  </style>
+</head>
+<body>
+  <h1>Water Heater Errors</h1>
+  <p>Showing the last {{ errors|length }} saved errors.</p>
+
+  {% if errors %}
+    <table>
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Raw</th>
+          <th>Cropped</th>
+          <th>Perspective fixed</th>
+          <th>OCR text</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for error in errors %}
+          <tr>
+            <td class="idx">{{ error.created_at }}</td>
+            <td><img src="data:image/jpeg;base64,{{ error.raw_image_b64 }}" alt="Raw error frame {{ error.id }}"></td>
+            <td><img src="data:image/jpeg;base64,{{ error.cropped_image_b64 }}" alt="Cropped error frame {{ error.id }}"></td>
+            <td><img src="data:image/jpeg;base64,{{ error.fixed_image_b64 }}" alt="Perspective fixed error frame {{ error.id }}"></td>
+            <td class="ocr">{{ error.ocr_text }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">No error history yet.</div>
+  {% endif %}
+</body>
+</html>

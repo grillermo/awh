@@ -8,15 +8,16 @@ import asyncio
 import argparse
 import base64
 import cv2
+import functools
 import numpy as np
 import os
 import re
+import sqlite3
 import sys
 import threading
 import time
 import urllib.request
 from datetime import datetime
-from tapo import ApiClient
 
 RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream1"
 TAPO_IP = "192.168.1.86"
@@ -35,6 +36,8 @@ DISPLAY_QUAD_REL = np.array([
     [0.7586, 0.6579],
     [0.2069, 0.8421],
 ], dtype=np.float32)
+ERROR_DB_PATH = "debug/errors.sqlite3"
+MAX_SAVED_ERRORS = 5
 
 
 def parse_display_crop(crop_arg):
@@ -67,6 +70,22 @@ def parse_args():
     return args
 
 
+def capture_frame(rtsp_url=RTSP_URL):
+    cap = cv2.VideoCapture(rtsp_url)
+    if not cap.isOpened():
+        print("[capture] ERROR: Failed to open stream", file=sys.stderr)
+        return None
+
+    ret, frame = cap.read()
+    cap.release()
+
+    if not ret:
+        print("[capture] ERROR: Failed to read frame", file=sys.stderr)
+        return None
+
+    return frame
+
+
 def capture_webcam(seconds=2):
     print(f"[capture] Opening RTSP stream for {seconds}s: {RTSP_URL}")
     cap = cv2.VideoCapture(RTSP_URL)
@@ -91,28 +110,33 @@ def capture_webcam(seconds=2):
     return frames
 
 
+def crop_frame(frame, coords=DISPLAY_CROP):
+    left_f, top_f, right_f, bottom_f = coords
+    h, w = frame.shape[:2]
+    l, t, r, b = int(w * left_f), int(h * top_f), int(w * right_f), int(h * bottom_f)
+    return frame[t:b, l:r]
+
+
 def crop_to_screen(frames, coords=DISPLAY_CROP):
     print(f"[crop] Cropping {len(frames)} frames with relative coords {coords}")
-    left_f, top_f, right_f, bottom_f = coords
     cropped = []
     for frame in frames:
-        h, w = frame.shape[:2]
-        l, t, r, b = int(w * left_f), int(h * top_f), int(w * right_f), int(h * bottom_f)
-        cropped.append(frame[t:b, l:r])
+        cropped.append(crop_frame(frame, coords=coords))
     print(f"[crop] Crop region (first frame): {cropped[0].shape if cropped else 'empty'}")
     return cropped
 
 
+def fix_perspective_frame(frame):
+    h, w = frame.shape[:2]
+    src = DISPLAY_QUAD_REL * np.array([w, h], dtype=np.float32)
+    w_out = h_out = 200
+    dst = np.array([[0, 0], [w_out - 1, 0], [w_out - 1, h_out - 1], [0, h_out - 1]], dtype=np.float32)
+    M = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(frame, M, (w_out, h_out))
+
+
 def fix_perspective(frames):
-    results = []
-    for frame in frames:
-        h, w = frame.shape[:2]
-        src = DISPLAY_QUAD_REL * np.array([w, h], dtype=np.float32)
-        w_out = h_out = 200
-        dst = np.array([[0, 0], [w_out - 1, 0], [w_out - 1, h_out - 1], [0, h_out - 1]], dtype=np.float32)
-        M = cv2.getPerspectiveTransform(src, dst)
-        results.append(cv2.warpPerspective(frame, M, (w_out, h_out)))
-    return results
+    return [fix_perspective_frame(frame) for frame in frames]
 
 
 def _frame_to_b64(frame):
@@ -120,56 +144,124 @@ def _frame_to_b64(frame):
     return base64.b64encode(buf).decode()
 
 
-def append_error_html(raw_frame, cropped_frame, fixed_frame, ocr_text, path="debug/errors.html"):
+def _frame_to_jpg_bytes(frame, quality=80):
+    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise ValueError("Failed to encode frame as JPEG")
+    return buf.tobytes()
+
+
+def get_error_db_connection(path=ERROR_DB_PATH):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS errors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            ocr_text TEXT NOT NULL,
+            raw_image BLOB NOT NULL,
+            cropped_image BLOB NOT NULL,
+            fixed_image BLOB NOT NULL
+        )
+        """
+    )
+    return conn
+
+
+def save_error(raw_frame, cropped_frame, fixed_frame, ocr_text, path=ERROR_DB_PATH):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    raw_b64 = _frame_to_b64(raw_frame)
-    crop_b64 = _frame_to_b64(cropped_frame)
-    fixed_b64 = _frame_to_b64(fixed_frame)
+    raw_jpg = _frame_to_jpg_bytes(raw_frame)
+    crop_jpg = _frame_to_jpg_bytes(cropped_frame)
+    fixed_jpg = _frame_to_jpg_bytes(fixed_frame)
 
-    new_row = f"""
-        <tr>
-          <td class="idx">{ts}</td>
-          <td><img src="data:image/jpeg;base64,{raw_b64}"></td>
-          <td><img src="data:image/jpeg;base64,{crop_b64}"></td>
-          <td><img src="data:image/jpeg;base64,{fixed_b64}"></td>
-          <td style="color:#c0392b;font-weight:bold">{ocr_text}</td>
-        </tr>"""
+    with get_error_db_connection(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO errors (created_at, ocr_text, raw_image, cropped_image, fixed_image)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (ts, ocr_text, raw_jpg, crop_jpg, fixed_jpg),
+        )
+        conn.execute(
+            """
+            DELETE FROM errors
+            WHERE id NOT IN (
+                SELECT id
+                FROM errors
+                ORDER BY id DESC
+                LIMIT ?
+            )
+            """,
+            (MAX_SAVED_ERRORS,),
+        )
+    print(f"[db] Error saved → {path}")
 
-    if os.path.exists(path):
-        content = open(path).read()
-        content = content.replace("<tbody>", "<tbody>" + new_row, 1)
-    else:
-        content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Water Heater Errors</title>
-<style>
-  body {{ font-family: monospace; background: #111; color: #eee; margin: 0; padding: 16px; }}
-  h1 {{ margin: 0 0 4px; }}
-  table {{ border-collapse: collapse; }}
-  th, td {{ padding: 4px 8px; border: 1px solid #333; vertical-align: middle; text-align: center; }}
-  th {{ background: #222; }}
-  td.idx {{ color: #888; font-size: 0.85em; white-space: nowrap; }}
-  img {{ max-height: 120px; display: block; }}
-</style>
-</head>
-<body>
-<h1>Water Heater Errors</h1>
-<table>
-  <thead>
-    <tr><th>Timestamp</th><th>Raw</th><th>Cropped</th><th>Perspective fixed</th><th>OCR text</th></tr>
-  </thead>
-  <tbody>{new_row}
-  </tbody>
-</table>
-</body>
-</html>"""
 
-    with open(path, "w") as f:
-        f.write(content)
-    print(f"[html] Error appended → {path}")
+def get_recent_errors(limit=MAX_SAVED_ERRORS, path=ERROR_DB_PATH):
+    with get_error_db_connection(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, created_at, ocr_text, raw_image, cropped_image, fixed_image
+            FROM errors
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    results = []
+    for row in rows:
+        results.append(
+            {
+                "id": row["id"],
+                "created_at": row["created_at"],
+                "ocr_text": row["ocr_text"],
+                "raw_image_b64": base64.b64encode(row["raw_image"]).decode(),
+                "cropped_image_b64": base64.b64encode(row["cropped_image"]).decode(),
+                "fixed_image_b64": base64.b64encode(row["fixed_image"]).decode(),
+            }
+        )
+    return results
+
+
+@functools.lru_cache(maxsize=1)
+def get_ocr_reader():
+    import easyocr
+    print("[ocr] Initialising EasyOCR reader (first call downloads model if needed)")
+    return easyocr.Reader(["en"], gpu=False, verbose=False)
+
+
+def detect_ocr_text(frame):
+    reader = get_ocr_reader()
+    detections = reader.readtext(frame, detail=0)
+    return " ".join(detections).strip()
+
+
+def classify_ocr_text(text):
+    if not text:
+        return {"ocr_text": "", "error_text": "", "is_error": False}
+
+    is_error = not bool(re.match(r'^\d', text))
+    return {
+        "ocr_text": text,
+        "error_text": text if is_error else "",
+        "is_error": is_error,
+    }
+
+
+def analyze_display_frame(raw_frame, display_crop=DISPLAY_CROP):
+    cropped_frame = crop_frame(raw_frame, coords=display_crop)
+    fixed_frame = fix_perspective_frame(cropped_frame)
+    ocr_text = detect_ocr_text(fixed_frame)
+    status = classify_ocr_text(ocr_text)
+    return {
+        "raw_frame": raw_frame,
+        "cropped_frame": cropped_frame,
+        "fixed_frame": fixed_frame,
+        **status,
+    }
 
 
 def error_showing_on_stream(frames):
@@ -178,9 +270,7 @@ def error_showing_on_stream(frames):
     Error state = first non-empty text does NOT begin with a digit.
     Returns (is_error: bool, ocr_results: list[dict])
     """
-    import easyocr
-    print("[ocr] Initialising EasyOCR reader (first call downloads model if needed)")
-    reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+    reader = get_ocr_reader()
 
     print(f"[ocr] Scanning {len(frames)} frames until first non-empty OCR hit")
     for idx, frame in enumerate(frames):
@@ -199,94 +289,9 @@ def error_showing_on_stream(frames):
     return False, []
 
 
-def save_debug_html(raw_frames, cropped_frames, fixed_frames, ocr_results, is_error, path="debug/index.html"):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    print(f"[html] Building debug page → {path}")
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    status_color = "#c0392b" if is_error else "#27ae60"
-    status_label = "ERROR DETECTED" if is_error else "OK — no error"
-
-    # Build OCR lookup: frame_idx → result dict
-    ocr_map = {r["frame_idx"]: r for r in ocr_results}
-
-    # Sample frames for display (cap at 30 to keep page size sane)
-    total = len(raw_frames)
-    step = max(1, total // 30)
-    indices = list(range(0, total, step))
-
-    rows_html = []
-    for idx in indices:
-        raw_b64 = _frame_to_b64(raw_frames[idx])
-        crop_b64 = _frame_to_b64(cropped_frames[idx])
-        fixed_b64 = _frame_to_b64(fixed_frames[idx])
-        ocr = ocr_map.get(idx)
-        ocr_cell = ""
-        if ocr:
-            color = "#c0392b" if ocr["error"] else "#27ae60"
-            ocr_cell = f'<td style="color:{color};font-weight:bold">{ocr["text"] or "(empty)"}</td>'
-        else:
-            ocr_cell = "<td>—</td>"
-
-        rows_html.append(f"""
-        <tr>
-          <td class="idx">#{idx}</td>
-          <td><img src="data:image/jpeg;base64,{raw_b64}"></td>
-          <td><img src="data:image/jpeg;base64,{crop_b64}"></td>
-          <td><img src="data:image/jpeg;base64,{fixed_b64}"></td>
-          {ocr_cell}
-        </tr>""")
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Water Heater Debug — {ts}</title>
-<style>
-  body {{ font-family: monospace; background: #111; color: #eee; margin: 0; padding: 16px; }}
-  h1 {{ margin: 0 0 4px; }}
-  .status {{ display: inline-block; padding: 4px 12px; border-radius: 4px;
-             background: {status_color}; color: #fff; font-size: 1.1em; margin-bottom: 16px; }}
-  table {{ border-collapse: collapse; }}
-  th, td {{ padding: 4px 8px; border: 1px solid #333; vertical-align: middle; text-align: center; }}
-  th {{ background: #222; }}
-  td.idx {{ color: #888; font-size: 0.85em; }}
-  img {{ max-height: 120px; display: block; }}
-</style>
-</head>
-<body>
-<h1>Water Heater Debug</h1>
-<p>{ts} &nbsp;|&nbsp; {total} frames captured &nbsp;|&nbsp; showing {len(indices)}</p>
-<div class="status">{status_label}</div>
-<table>
-  <thead>
-    <tr><th>#</th><th>Raw</th><th>Cropped</th><th>Perspective fixed</th><th>OCR text</th></tr>
-  </thead>
-  <tbody>
-    {"".join(rows_html)}
-  </tbody>
-</table>
-</body>
-</html>"""
-
-    with open(path, "w") as f:
-        f.write(html)
-    print(f"[html] Saved {path} ({len(html) // 1024} KB)")
-
-
-PUSHCUT_URL = "https://api.pushcut.io/_1RydjJ1v1fHAI4RDRZ2k/notifications/calentador%20reparado"
-
-
-def notify_pushcut():
-    def _call():
-        try:
-            urllib.request.urlopen(PUSHCUT_URL, timeout=10)
-        except Exception as e:
-            print(f"[pushcut] WARNING: {e}", file=sys.stderr)
-    threading.Thread(target=_call, daemon=True).start()
-    print("[pushcut] Notification fired")
-
-
 async def _reset_tapo_async():
+    from tapo import ApiClient
+
     client = ApiClient(TAPO_EMAIL, TAPO_PASSWORD)
     device = await client.p100(TAPO_IP)
     print(f"[tapo] Turning off {TAPO_IP}")
@@ -316,13 +321,11 @@ def main(display_crop=DISPLAY_CROP):
     fixed = fix_perspective(cropped)
 
     is_error, ocr_results = error_showing_on_stream(fixed)
-    save_debug_html(frames, cropped, fixed, ocr_results, is_error)
 
     if is_error:
         print("[main] Error detected → resetting P100")
         fidx = ocr_results[0]["frame_idx"]
-        append_error_html(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
-        notify_pushcut()
+        save_error(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
         reset_tapo100()
     else:
         print("[main] No error → nothing to do")

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Water Heater Monitor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0f1115;
+      color: #edf2f7;
+      font-family: monospace;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.2fr) minmax(280px, 0.8fr);
+      gap: 20px;
+      align-items: stretch;
+    }
+    .panel {
+      background: #171923;
+      border: 1px solid #2d3748;
+      border-radius: 14px;
+      padding: 16px;
+      min-height: 320px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #a0aec0;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .history-link {
+      color: #9ae6b4;
+      text-decoration: none;
+      border: 1px solid #2f855a;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+    }
+    .history-link:hover {
+      background: #163826;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 0.95rem;
+      color: #cbd5e0;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: #0b0d12;
+      border: 1px solid #2d3748;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+    }
+    .value {
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      line-height: 1.1;
+      color: #f7fafc;
+      word-break: break-word;
+    }
+    .value.error { color: #fc8181; }
+    .label {
+      margin-top: 20px;
+      font-size: 0.8rem;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .meta {
+      margin-top: 8px;
+      color: #a0aec0;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+    }
+    .status.ok { background: #1f4f37; color: #b7f5cf; }
+    .status.error { background: #5a1f1f; color: #fecaca; }
+    .status.pending { background: #3b334d; color: #ddd6fe; }
+    .error-box {
+      margin-top: 16px;
+      background: #2b1616;
+      border: 1px solid #7f1d1d;
+      color: #fecaca;
+      border-radius: 10px;
+      padding: 12px 14px;
+      line-height: 1.5;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Water Heater Monitor</h1>
+    <a class="history-link" href="/errors-history" target="_blank" rel="noopener noreferrer">Errors history</a>
+  </div>
+  <div class="layout">
+    <section class="panel">
+      <h2>Cropped Frame</h2>
+      <img id="frame" alt="Latest cropped display frame">
+    </section>
+    <section class="panel">
+      <div id="status" class="status pending">Waiting for first refresh</div>
+      <h2>OCR</h2>
+      <div id="ocr-text" class="value">...</div>
+      <div class="label">Error String</div>
+      <div id="error-text" class="value"></div>
+      <div class="label">Meta</div>
+      <div id="meta" class="meta"></div>
+      <div id="request-error" class="error-box" hidden></div>
+    </section>
+  </div>
+
+  <script>
+    const displayCrop = {{ display_crop|tojson }};
+    const frameEl = document.getElementById("frame");
+    const ocrEl = document.getElementById("ocr-text");
+    const errorEl = document.getElementById("error-text");
+    const metaEl = document.getElementById("meta");
+    const statusEl = document.getElementById("status");
+    const requestErrorEl = document.getElementById("request-error");
+
+    function setStatus(kind, text) {
+      statusEl.className = `status ${kind}`;
+      statusEl.textContent = text;
+    }
+
+    async function refreshMonitor() {
+      try {
+        const response = await fetch(`/api/monitor?display_crop=${encodeURIComponent(displayCrop)}`, { cache: "no-store" });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Failed to refresh monitor");
+        }
+
+        requestErrorEl.hidden = true;
+        frameEl.src = `data:image/jpeg;base64,${data.cropped_frame_b64}`;
+        ocrEl.textContent = data.ocr_text || "(empty)";
+        ocrEl.className = data.is_error ? "value error" : "value";
+        errorEl.textContent = data.error_text || "none";
+        errorEl.className = data.is_error ? "value error" : "value";
+        metaEl.textContent = `display_crop=${data.display_crop.join(", ")} | refreshed ${new Date().toLocaleTimeString()}`;
+        setStatus(data.is_error ? "error" : "ok", data.is_error ? "Error detected" : "No error");
+      } catch (error) {
+        requestErrorEl.hidden = false;
+        requestErrorEl.textContent = error.message;
+        setStatus("error", "Refresh failed");
+      }
+    }
+
+    refreshMonitor();
+    setInterval(refreshMonitor, 3000);
+  </script>
+</body>
+</html>
