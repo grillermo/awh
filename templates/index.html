@@ -40,7 +40,7 @@
       flex-wrap: wrap;
     }
     #crop-value { flex: 1; letter-spacing: 0.02em; }
-    #copy-btn {
+    #copy-btn, #save-btn {
       background: #2d6a4f;
       color: #fff;
       border: none;
@@ -50,8 +50,10 @@
       font-family: monospace;
       font-size: 0.95em;
     }
-    #copy-btn:hover { background: #40916c; }
+    #copy-btn:hover, #save-btn:hover { background: #40916c; }
     #copy-btn.copied { background: #52b788; }
+    #save-btn.saved { background: #52b788; }
+    #save-btn.error { background: #7f1d1d; }
     #hint { margin-top: 8px; color: #666; font-size: 0.82em; }
     #coords-detail { margin-top: 8px; color: #888; font-size: 0.85em; }
     .error-box {
@@ -109,6 +111,7 @@
       <div id="value-box">
         <span id="crop-value"></span>
         <button id="copy-btn" type="button">Copy</button>
+        <button id="save-btn" type="button">Save as default</button>
       </div>
       <div id="coords-detail"></div>
       <div id="hint">Drag corners or edges to resize. Drag inside to move. Drag outside to draw a new rect. Pinch with two fingers to zoom or pan.</div>
@@ -119,6 +122,7 @@
   <script>
   const IMG_SRC = "data:image/jpeg;base64,{{ frame_b64 }}";
   const INITIAL_RECT = {{ crop|tojson }};
+  const INITIAL_VIEW = {{ initial_view|tojson }};
   const HANDLE_SIZE = 8;
   const HANDLE_HIT_SIZE = 22;
   const MIN_RECT_SIZE = 0.01;
@@ -139,6 +143,7 @@
   const activePointers = new Map();
   let view = { scale: 1, offsetX: 0, offsetY: 0 };
   let mobileFullscreenRequested = false;
+  let firstLayout = true;
 
   img.onload = () => {
     imgW = img.naturalWidth;
@@ -192,8 +197,17 @@
     canvasH = Math.round(imgH * scale);
     canvas.width = canvasW;
     canvas.height = canvasH;
-    if (resetZoom) resetView();
-    else clampView();
+    if (resetZoom && firstLayout && INITIAL_VIEW) {
+      view.scale = INITIAL_VIEW.scale;
+      view.offsetX = INITIAL_VIEW.offsetXFrac * canvasW;
+      view.offsetY = INITIAL_VIEW.offsetYFrac * canvasH;
+      clampView();
+    } else if (resetZoom) {
+      resetView();
+    } else {
+      clampView();
+    }
+    firstLayout = false;
     draw();
   }
 
@@ -496,7 +510,49 @@
     }
   }
 
+  const saveBtn = document.getElementById("save-btn");
+
+  function saveCrop() {
+    const cropReq = fetch("/api/save-crop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ crop: [rect.l, rect.t, rect.r, rect.b] }),
+    }).then(r => r.json());
+
+    const viewReq = fetch("/api/save-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        view: {
+          scale: view.scale,
+          offsetXFrac: canvasW > 0 ? view.offsetX / canvasW : 0,
+          offsetYFrac: canvasH > 0 ? view.offsetY / canvasH : 0,
+        },
+      }),
+    }).then(r => r.json());
+
+    Promise.all([cropReq, viewReq])
+      .then(([cropData, viewData]) => {
+        const ok = cropData.ok && viewData.ok;
+        saveBtn.textContent = ok ? "Saved!" : "Error";
+        saveBtn.classList.add(ok ? "saved" : "error");
+        setTimeout(() => {
+          saveBtn.textContent = "Save as default";
+          saveBtn.classList.remove("saved", "error");
+        }, 1500);
+      })
+      .catch(() => {
+        saveBtn.textContent = "Error";
+        saveBtn.classList.add("error");
+        setTimeout(() => {
+          saveBtn.textContent = "Save as default";
+          saveBtn.classList.remove("error");
+        }, 1500);
+      });
+  }
+
   copyBtn.addEventListener("click", copyValue);
+  saveBtn.addEventListener("click", saveCrop);
   monitorBtn.addEventListener("click", () => {
     window.location.href = `/monitor?display_crop=${encodeURIComponent(cropStr())}`;
   });

@@ -165,7 +165,61 @@ def get_error_db_connection(path=ERROR_DB_PATH):
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
     return conn
+
+
+def save_display_crop(coords, path=ERROR_DB_PATH):
+    import json
+    with get_error_db_connection(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('display_crop', ?)",
+            (json.dumps(list(coords)),),
+        )
+
+
+def load_display_crop(path=ERROR_DB_PATH):
+    import json
+    try:
+        with get_error_db_connection(path) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'display_crop'"
+            ).fetchone()
+        if row:
+            return tuple(json.loads(row["value"]))
+    except Exception:
+        pass
+    return DISPLAY_CROP
+
+
+def save_display_view(view, path=ERROR_DB_PATH):
+    import json
+    with get_error_db_connection(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('display_view', ?)",
+            (json.dumps(view),),
+        )
+
+
+def load_display_view(path=ERROR_DB_PATH):
+    import json
+    try:
+        with get_error_db_connection(path) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'display_view'"
+            ).fetchone()
+        if row:
+            return json.loads(row["value"])
+    except Exception:
+        pass
+    return None
 
 
 def save_error(raw_frame, cropped_frame, fixed_frame, ocr_text, path=ERROR_DB_PATH):

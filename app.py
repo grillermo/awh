@@ -6,7 +6,7 @@ import os
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, capture_frame, get_recent_errors, monitor_and_reset
+from auto_reset import DISPLAY_CROP, capture_frame, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -45,7 +45,7 @@ def load_fresh_frame():
 def index():
     error = None
     frame_b64 = None
-    crop = DISPLAY_CROP
+    crop = load_display_crop()
 
     try:
         frame = load_fresh_frame()
@@ -53,7 +53,36 @@ def index():
     except Exception as exc:
         error = str(exc)
 
-    return render_template("index.html", frame_b64=frame_b64, crop=crop, error=error)
+    initial_view = load_display_view()
+    return render_template("index.html", frame_b64=frame_b64, crop=crop, initial_view=initial_view, error=error)
+
+
+@app.post("/api/save-crop")
+def api_save_crop():
+    data = request.get_json(force=True, silent=True) or {}
+    crop = data.get("crop")
+    if not isinstance(crop, list) or len(crop) != 4:
+        return jsonify({"ok": False, "error": "crop must be array of 4 floats"}), 400
+    try:
+        coords = tuple(float(v) for v in crop)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    save_display_crop(coords)
+    return jsonify({"ok": True, "crop": list(coords)})
+
+
+@app.post("/api/save-view")
+def api_save_view():
+    data = request.get_json(force=True, silent=True) or {}
+    view = data.get("view")
+    if not isinstance(view, dict) or not all(k in view for k in ("scale", "offsetXFrac", "offsetYFrac")):
+        return jsonify({"ok": False, "error": "view must have scale, offsetXFrac, offsetYFrac"}), 400
+    try:
+        safe = {k: float(view[k]) for k in ("scale", "offsetXFrac", "offsetYFrac")}
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    save_display_view(safe)
+    return jsonify({"ok": True, "view": safe})
 
 
 @app.get("/monitor")
