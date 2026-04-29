@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DISPLAY_CROP Tool</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
   h1 { font-size: 1.1em; margin-bottom: 12px; color: #aaa; }
-  #canvas-wrap { position: relative; display: inline-block; cursor: crosshair; }
-  canvas { display: block; }
+  #canvas-wrap { position: relative; display: inline-block; cursor: crosshair; overflow: hidden; max-width: 100%; }
+  canvas { display: block; touch-action: none; max-width: 100%; }
   #output { margin-top: 16px; }
   #value-box {
     background: #1e1e1e;
@@ -37,6 +38,38 @@
   #copy-btn.copied { background: #52b788; }
   #hint { margin-top: 8px; color: #666; font-size: 0.82em; }
   #coords-detail { margin-top: 8px; color: #888; font-size: 0.85em; }
+
+  @media (hover: none) and (pointer: coarse) {
+    body.mobile-fullscreen {
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+    }
+    body.mobile-fullscreen h1,
+    body.mobile-fullscreen #output {
+      display: none;
+    }
+    body.mobile-fullscreen #canvas-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      max-width: none;
+      cursor: crosshair;
+      background: #000;
+    }
+    body.mobile-fullscreen canvas {
+      max-width: none;
+      max-height: none;
+    }
+  }
 </style>
 </head>
 <body>
@@ -50,12 +83,16 @@
     <button id="copy-btn" onclick="copyValue()">Copy</button>
   </div>
   <div id="coords-detail"></div>
-  <div id="hint">Drag corners/edges to resize · Drag inside to move · Drag outside to draw new rect</div>
+  <div id="hint">Drag corners/edges to resize · Drag inside to move · Drag outside to draw new rect · Pinch with two fingers to zoom/pan</div>
 </div>
 
 <script>
 const IMG_SRC = 'capture.jpg';
 const HANDLE_SIZE = 8;
+const HANDLE_HIT_SIZE = 22;
+const MIN_RECT_SIZE = 0.01;
+const MIN_VIEW_SCALE = 1;
+const MAX_VIEW_SCALE = 6;
 
 // Initial DISPLAY_CROP = (left, top, right, bottom)
 let rect = { l: 0.648, t: 0.704, r: 0.732, b: 0.866 };
@@ -65,19 +102,16 @@ const ctx = canvas.getContext('2d');
 const img = new Image();
 
 let imgW, imgH, scale, canvasW, canvasH;
+let drag = null; // { type: 'handle'|'move'|'draw', handleIdx?, startRect, startX, startY, pointerId }
+let pinch = null; // { startScale, startOffsetX, startOffsetY, startDist, startCenter }
+const activePointers = new Map();
+let view = { scale: 1, offsetX: 0, offsetY: 0 };
+let mobileFullscreenRequested = false;
 
 img.onload = () => {
   imgW = img.naturalWidth;
   imgH = img.naturalHeight;
-  // Fit to max 900px wide or 600px tall
-  const maxW = Math.min(900, window.innerWidth - 40);
-  const maxH = 600;
-  scale = Math.min(maxW / imgW, maxH / imgH, 1);
-  canvasW = Math.round(imgW * scale);
-  canvasH = Math.round(imgH * scale);
-  canvas.width = canvasW;
-  canvas.height = canvasH;
-  draw();
+  layoutCanvas();
 };
 img.src = IMG_SRC;
 
@@ -97,8 +131,54 @@ function toFrac(cx, cy) {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function isMobileDevice() {
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+function layoutCanvas(resetZoom = true) {
+  if (!imgW || !imgH) return;
+  const mobile = isMobileDevice();
+  document.body.classList.toggle('mobile-fullscreen', mobile);
+  const viewportPadding = mobile ? 0 : 40;
+  const maxW = mobile ? window.innerWidth : Math.min(900, window.innerWidth - viewportPadding);
+  const maxH = mobile ? window.innerHeight : 600;
+  scale = Math.min(maxW / imgW, maxH / imgH, 1);
+  canvasW = Math.round(imgW * scale);
+  canvasH = Math.round(imgH * scale);
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  if (resetZoom) resetView();
+  else clampView();
+  draw();
+}
+
+async function enterMobileFullscreen() {
+  if (!isMobileDevice() || mobileFullscreenRequested) return;
+  mobileFullscreenRequested = true;
+  document.body.classList.add('mobile-fullscreen');
+  try {
+    if (document.fullscreenElement == null && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    }
+  } catch (_) {
+    // Ignore fullscreen errors; some mobile browsers require stricter gesture rules.
+  }
+
+  try {
+    if (screen.orientation?.lock) {
+      await screen.orientation.lock('landscape');
+    }
+  } catch (_) {
+    // Ignore orientation lock errors; unsupported on some browsers.
+  }
+
+  layoutCanvas(false);
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvasW, canvasH);
+  ctx.save();
+  ctx.setTransform(view.scale, 0, 0, view.scale, view.offsetX, view.offsetY);
   ctx.drawImage(img, 0, 0, canvasW, canvasH);
 
   const { x, y, w, h } = toCanvas(rect);
@@ -120,6 +200,7 @@ function draw() {
   for (const [hx, hy] of handles(x, y, w, h)) {
     ctx.fillRect(hx - HANDLE_SIZE / 2, hy - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
   }
+  ctx.restore();
 
   updateOutput();
 }
@@ -155,14 +236,12 @@ const HANDLE_CURSORS = [
   'se-resize','s-resize','sw-resize','w-resize',
 ];
 
-let drag = null; // { type: 'handle'|'move'|'draw', handleIdx?, startRect, startX, startY }
-
 function hitHandle(mx, my) {
   const { x, y, w, h } = toCanvas(rect);
   const hs = handles(x, y, w, h);
   for (let i = 0; i < hs.length; i++) {
     const [hx, hy] = hs[i];
-    if (Math.abs(mx - hx) <= HANDLE_SIZE && Math.abs(my - hy) <= HANDLE_SIZE) return i;
+    if (Math.abs(mx - hx) <= HANDLE_HIT_SIZE && Math.abs(my - hy) <= HANDLE_HIT_SIZE) return i;
   }
   return -1;
 }
@@ -172,46 +251,67 @@ function insideRect(mx, my) {
   return mx >= x && mx <= x + w && my >= y && my <= y + h;
 }
 
-canvas.addEventListener('mousedown', e => {
-  const { ox, oy } = offset(e);
+function resetView() {
+  view = { scale: 1, offsetX: 0, offsetY: 0 };
+}
+
+function clampView() {
+  view.scale = clamp(view.scale, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
+  const scaledW = canvasW * view.scale;
+  const scaledH = canvasH * view.scale;
+  const minX = Math.min(0, canvasW - scaledW);
+  const minY = Math.min(0, canvasH - scaledH);
+  view.offsetX = clamp(view.offsetX, minX, 0);
+  view.offsetY = clamp(view.offsetY, minY, 0);
+}
+
+function screenToCanvas(clientX, clientY) {
+  const r = canvas.getBoundingClientRect();
+  const sx = (clientX - r.left) * (canvas.width / r.width);
+  const sy = (clientY - r.top) * (canvas.height / r.height);
+  return {
+    ox: (sx - view.offsetX) / view.scale,
+    oy: (sy - view.offsetY) / view.scale,
+    sx,
+    sy,
+  };
+}
+
+function setCursorForPoint(ox, oy) {
+  const hi = hitHandle(ox, oy);
+  if (hi >= 0) canvas.style.cursor = HANDLE_CURSORS[hi];
+  else if (insideRect(ox, oy)) canvas.style.cursor = 'grab';
+  else canvas.style.cursor = 'crosshair';
+}
+
+function beginDrag(pointerId, ox, oy) {
   const hi = hitHandle(ox, oy);
   if (hi >= 0) {
-    drag = { type: 'handle', handleIdx: hi, startRect: { ...rect }, startX: ox, startY: oy };
+    drag = { type: 'handle', handleIdx: hi, startRect: { ...rect }, startX: ox, startY: oy, pointerId };
   } else if (insideRect(ox, oy)) {
-    drag = { type: 'move', startRect: { ...rect }, startX: ox, startY: oy };
+    drag = { type: 'move', startRect: { ...rect }, startX: ox, startY: oy, pointerId };
     canvas.style.cursor = 'grabbing';
   } else {
-    // Start drawing new rect
     const { fx, fy } = toFrac(ox, oy);
-    drag = { type: 'draw', startFx: fx, startFy: fy };
+    drag = { type: 'draw', startFx: fx, startFy: fy, pointerId };
     rect = { l: fx, t: fy, r: fx, b: fy };
+    draw();
   }
-});
+}
 
-window.addEventListener('mousemove', e => {
-  if (!drag) {
-    // Update cursor
-    const { ox, oy } = offset(e);
-    const hi = hitHandle(ox, oy);
-    if (hi >= 0) canvas.style.cursor = HANDLE_CURSORS[hi];
-    else if (insideRect(ox, oy)) canvas.style.cursor = 'grab';
-    else canvas.style.cursor = 'crosshair';
-    return;
-  }
-
-  const { ox, oy } = offset(e);
+function updateDrag(ox, oy) {
+  if (!drag) return;
 
   if (drag.type === 'handle') {
     const dx = ox - drag.startX, dy = oy - drag.startY;
     const [el, et, er, eb] = HANDLE_EDGES[drag.handleIdx];
     const s = drag.startRect;
     let nl = s.l, nt = s.t, nr = s.r, nb = s.b;
-    if (el) nl = clamp(s.l + dx / canvasW, 0, nr - 0.01);
-    if (et) nt = clamp(s.t + dy / canvasH, 0, nb - 0.01);
-    if (er) nr = clamp(s.r + dx / canvasW, nl + 0.01, 1);
-    if (eb) nb = clamp(s.b + dy / canvasH, nt + 0.01, 1);
+    if (el) nl = clamp(s.l + dx / canvasW, 0, nr - MIN_RECT_SIZE);
+    if (et) nt = clamp(s.t + dy / canvasH, 0, nb - MIN_RECT_SIZE);
+    if (er) nr = clamp(s.r + dx / canvasW, nl + MIN_RECT_SIZE, 1);
+    if (eb) nb = clamp(s.b + dy / canvasH, nt + MIN_RECT_SIZE, 1);
     rect = { l: nl, t: nt, r: nr, b: nb };
-
   } else if (drag.type === 'move') {
     const dx = (ox - drag.startX) / canvasW;
     const dy = (oy - drag.startY) / canvasH;
@@ -220,7 +320,6 @@ window.addEventListener('mousemove', e => {
     const nl = clamp(s.l + dx, 0, 1 - w);
     const nt = clamp(s.t + dy, 0, 1 - h);
     rect = { l: nl, t: nt, r: nl + w, b: nt + h };
-
   } else if (drag.type === 'draw') {
     const { fx, fy } = toFrac(ox, oy);
     rect = {
@@ -230,19 +329,125 @@ window.addEventListener('mousemove', e => {
       b: clamp(Math.max(drag.startFy, fy), 0, 1),
     };
   }
-
   draw();
-});
+}
 
-window.addEventListener('mouseup', () => {
+function endDrag() {
   drag = null;
   canvas.style.cursor = 'crosshair';
+}
+
+function getPinchPointers() {
+  return Array.from(activePointers.values()).slice(0, 2);
+}
+
+function pointerDistance(a, b) {
+  return Math.hypot(a.sx - b.sx, a.sy - b.sy);
+}
+
+function pointerCenter(a, b) {
+  return { x: (a.sx + b.sx) / 2, y: (a.sy + b.sy) / 2 };
+}
+
+function beginPinch() {
+  const [a, b] = getPinchPointers();
+  if (!a || !b) return;
+  pinch = {
+    startScale: view.scale,
+    startOffsetX: view.offsetX,
+    startOffsetY: view.offsetY,
+    startDist: pointerDistance(a, b),
+    startCenter: pointerCenter(a, b),
+  };
+  drag = null;
+  canvas.style.cursor = 'move';
+}
+
+function updatePinch() {
+  if (!pinch) return;
+  const [a, b] = getPinchPointers();
+  if (!a || !b) return;
+  const dist = Math.max(pointerDistance(a, b), 1);
+  const center = pointerCenter(a, b);
+  const nextScale = clamp(pinch.startScale * (dist / pinch.startDist), MIN_VIEW_SCALE, MAX_VIEW_SCALE);
+  const scaleRatio = nextScale / pinch.startScale;
+
+  view.scale = nextScale;
+  view.offsetX = center.x - (pinch.startCenter.x - pinch.startOffsetX) * scaleRatio;
+  view.offsetY = center.y - (pinch.startCenter.y - pinch.startOffsetY) * scaleRatio;
+  clampView();
+  draw();
+}
+
+canvas.addEventListener('pointerdown', e => {
+  enterMobileFullscreen();
+  canvas.setPointerCapture(e.pointerId);
+  const pt = screenToCanvas(e.clientX, e.clientY);
+  activePointers.set(e.pointerId, { ...pt, pointerType: e.pointerType });
+  if (activePointers.size === 2) {
+    beginPinch();
+  } else if (activePointers.size === 1) {
+    beginDrag(e.pointerId, pt.ox, pt.oy);
+  }
+  e.preventDefault();
 });
 
-function offset(e) {
-  const r = canvas.getBoundingClientRect();
-  return { ox: e.clientX - r.left, oy: e.clientY - r.top };
+canvas.addEventListener('pointermove', e => {
+  const pt = screenToCanvas(e.clientX, e.clientY);
+  if (activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { ...pt, pointerType: e.pointerType });
+  }
+
+  if (pinch && activePointers.size >= 2) {
+    updatePinch();
+    e.preventDefault();
+    return;
+  }
+
+  if (drag && drag.pointerId === e.pointerId) {
+    updateDrag(pt.ox, pt.oy);
+    e.preventDefault();
+    return;
+  }
+
+  if (e.pointerType === 'mouse') {
+    setCursorForPoint(pt.ox, pt.oy);
+  }
+});
+
+function releasePointer(e) {
+  activePointers.delete(e.pointerId);
+  if (canvas.hasPointerCapture(e.pointerId)) {
+    canvas.releasePointerCapture(e.pointerId);
+  }
+
+  if (pinch) {
+    if (activePointers.size >= 2) {
+      beginPinch();
+    } else {
+      pinch = null;
+      canvas.style.cursor = 'crosshair';
+      if (activePointers.size === 1) {
+        const [remainingId, remaining] = activePointers.entries().next().value;
+        beginDrag(remainingId, remaining.ox, remaining.oy);
+      }
+    }
+  } else if (drag && drag.pointerId === e.pointerId) {
+    endDrag();
+  }
 }
+
+canvas.addEventListener('pointerup', releasePointer);
+canvas.addEventListener('pointercancel', releasePointer);
+canvas.addEventListener('pointerleave', e => {
+  if (e.pointerType === 'mouse' && !drag && !pinch) {
+    canvas.style.cursor = 'crosshair';
+  }
+});
+
+window.addEventListener('resize', () => layoutCanvas(false));
+document.addEventListener('fullscreenchange', () => layoutCanvas(false));
+screen.orientation?.addEventListener?.('change', () => layoutCanvas(false));
 
 function fmt(v) { return v.toFixed(3); }
 
