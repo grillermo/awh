@@ -5,6 +5,7 @@ Captures webcam stream, detects error on display, runs macOS shortcut.
 """
 
 import asyncio
+import argparse
 import base64
 import cv2
 import numpy as np
@@ -34,6 +35,36 @@ DISPLAY_QUAD_REL = np.array([
     [0.7586, 0.6579],
     [0.2069, 0.8421],
 ], dtype=np.float32)
+
+
+def parse_display_crop(crop_arg):
+    parts = [part.strip() for part in crop_arg.split(",")]
+    if len(parts) != 4:
+        raise ValueError(
+            f"DISPLAY_CROP must contain 4 comma-separated values, got {len(parts)}: {crop_arg!r}"
+        )
+
+    try:
+        return tuple(float(part) for part in parts)
+    except ValueError as exc:
+        raise ValueError(f"DISPLAY_CROP values must be floats: {crop_arg!r}") from exc
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Auto water heater reset.")
+    parser.add_argument(
+        "--display-crop",
+        default=",".join(str(value) for value in DISPLAY_CROP),
+        help="Comma-separated crop fractions: left,top,right,bottom",
+    )
+    args = parser.parse_args()
+
+    try:
+        args.display_crop = parse_display_crop(args.display_crop)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    return args
 
 
 def capture_webcam(seconds=2):
@@ -275,13 +306,13 @@ def reset_tapo100():
         print(f"[tapo] ERROR: {e}", file=sys.stderr)
 
 
-def main():
+def main(display_crop=DISPLAY_CROP):
     frames = capture_webcam(seconds=3)
     if not frames:
         print("No frames captured. Exiting.")
         sys.exit(1)
 
-    cropped = crop_to_screen(frames)
+    cropped = crop_to_screen(frames, coords=display_crop)
     fixed = fix_perspective(cropped)
 
     is_error, ocr_results = error_showing_on_stream(fixed)
@@ -298,9 +329,10 @@ def main():
 
 
 if __name__ == "__main__":
+    args = parse_args()
     end_time = time.time() + 1.5 * 3600
     while time.time() < end_time:
-        main()
+        main(display_crop=args.display_crop)
         remaining = end_time - time.time()
         if remaining > 0:
             time.sleep(min(5, remaining))
