@@ -36,7 +36,7 @@ DISPLAY_QUAD_REL = np.array([
     [0.7586, 0.6579],
     [0.2069, 0.8421],
 ], dtype=np.float32)
-ERROR_DB_PATH = "debug/errors.sqlite3"
+ERROR_DB_PATH = "errors.sqlite3"
 MAX_SAVED_ERRORS = 5
 
 
