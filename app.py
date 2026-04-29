@@ -6,7 +6,7 @@ import os
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, analyze_display_frame, capture_frame, get_recent_errors
+from auto_reset import DISPLAY_CROP, capture_frame, get_recent_errors, monitor_and_reset
 
 app = Flask(__name__)
 
@@ -71,7 +71,7 @@ def errors_history():
 def monitor_data():
     try:
         display_crop = parse_display_crop_arg(request.args.get("display_crop"))
-        result = analyze_display_frame(load_fresh_frame(), display_crop=display_crop)
+        result = monitor_and_reset(display_crop=display_crop)
         return jsonify(
             {
                 "ok": True,

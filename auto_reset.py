@@ -139,11 +139,6 @@ def fix_perspective(frames):
     return [fix_perspective_frame(frame) for frame in frames]
 
 
-def _frame_to_b64(frame):
-    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-    return base64.b64encode(buf).decode()
-
-
 def _frame_to_jpg_bytes(frame, quality=80):
     ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not ok:
@@ -236,12 +231,6 @@ def get_ocr_reader():
     return easyocr.Reader(["en"], gpu=False, verbose=False)
 
 
-def detect_ocr_text(frame):
-    reader = get_ocr_reader()
-    detections = reader.readtext(frame, detail=0)
-    return " ".join(detections).strip()
-
-
 def classify_ocr_text(text):
     if not text:
         return {"ocr_text": "", "error_text": "", "is_error": False}
@@ -251,19 +240,6 @@ def classify_ocr_text(text):
         "ocr_text": text,
         "error_text": text if is_error else "",
         "is_error": is_error,
-    }
-
-
-def analyze_display_frame(raw_frame, display_crop=DISPLAY_CROP):
-    cropped_frame = crop_frame(raw_frame, coords=display_crop)
-    fixed_frame = fix_perspective_frame(cropped_frame)
-    ocr_text = detect_ocr_text(fixed_frame)
-    status = classify_ocr_text(ocr_text)
-    return {
-        "raw_frame": raw_frame,
-        "cropped_frame": cropped_frame,
-        "fixed_frame": fixed_frame,
-        **status,
     }
 
 
@@ -314,31 +290,45 @@ def reset_tapo100():
         print(f"[tapo] ERROR: {e}", file=sys.stderr)
 
 
-def main(display_crop=DISPLAY_CROP):
+def monitor_and_reset(display_crop=DISPLAY_CROP):
     frames = capture_webcam(seconds=3)
     if not frames:
-        print("No frames captured. Exiting.")
-        sys.exit(1)
+        raise RuntimeError("Failed to capture frames from RTSP stream")
 
     cropped = crop_to_screen(frames, coords=display_crop)
     fixed = fix_perspective(cropped)
 
     is_error, ocr_results = error_showing_on_stream(fixed)
 
+    if ocr_results:
+        fidx = ocr_results[0]["frame_idx"]
+        ocr_text = ocr_results[0]["text"]
+    else:
+        fidx = len(frames) - 1
+        ocr_text = ""
+
+    result = {
+        "raw_frame": frames[fidx],
+        "cropped_frame": cropped[fidx],
+        "fixed_frame": fixed[fidx],
+        **classify_ocr_text(ocr_text),
+    }
+
     if is_error:
         print("[main] Error detected → resetting P100")
-        fidx = ocr_results[0]["frame_idx"]
         save_error(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
         reset_tapo100()
     else:
         print("[main] No error → nothing to do")
+
+    return result
 
 
 if __name__ == "__main__":
     args = parse_args()
     end_time = time.time() + 1.5 * 3600
     while time.time() < end_time:
-        main(display_crop=args.display_crop)
+        monitor_and_reset(display_crop=args.display_crop)
         remaining = end_time - time.time()
         if remaining > 0:
             time.sleep(min(5, remaining))
