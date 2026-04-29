@@ -2,7 +2,7 @@ import cv2
 import sys
 
 RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream2"
-OUTPUT = "frame.jpg"
+OUTPUT = "debug/capture.jpg"
 
 cap = cv2.VideoCapture(RTSP_URL)
 if not cap.isOpened():

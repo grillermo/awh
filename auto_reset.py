@@ -11,18 +11,20 @@ import numpy as np
 import os
 import re
 import sys
+import threading
 import time
+import urllib.request
 from datetime import datetime
 from tapo import ApiClient
 
-RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream2"
+RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream1"
 TAPO_IP = "192.168.1.86"
 TAPO_EMAIL = os.environ.get("TAPO_EMAIL", "guillermo.siliceo@gmail.com")
 TAPO_PASSWORD = os.environ.get("TAPO_PASSWORD", "2qEP@Pxiy32*qtd")
 
 # Crop coords for the circular display (from crop_display.py, tuned for 640x480)
 # Expressed as fractions so resolution changes don't break them
-DISPLAY_CROP = (0.637, 0.748, 0.682, 0.855)  # left, top, right, bottom
+DISPLAY_CROP = ((0.631, 0.585, 0.676, 0.691))  # left, top, right, bottom
 
 # Hardcoded quad corners relative to the cropped display region
 # (top-left, top-right, bottom-right, bottom-left) — detected once via detect_perspective.py
@@ -240,6 +242,19 @@ def save_debug_html(raw_frames, cropped_frames, fixed_frames, ocr_results, is_er
     print(f"[html] Saved {path} ({len(html) // 1024} KB)")
 
 
+PUSHCUT_URL = "https://api.pushcut.io/_1RydjJ1v1fHAI4RDRZ2k/notifications/calentador%20reparado"
+
+
+def notify_pushcut():
+    def _call():
+        try:
+            urllib.request.urlopen(PUSHCUT_URL, timeout=10)
+        except Exception as e:
+            print(f"[pushcut] WARNING: {e}", file=sys.stderr)
+    threading.Thread(target=_call, daemon=True).start()
+    print("[pushcut] Notification fired")
+
+
 async def _reset_tapo_async():
     client = ApiClient(TAPO_EMAIL, TAPO_PASSWORD)
     device = await client.p100(TAPO_IP)
@@ -276,6 +291,7 @@ def main():
         print("[main] Error detected → resetting P100")
         fidx = ocr_results[0]["frame_idx"]
         append_error_html(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
+        notify_pushcut()
         reset_tapo100()
     else:
         print("[main] No error → nothing to do")

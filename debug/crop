@@ -54,7 +54,7 @@
 </div>
 
 <script>
-const IMG_SRC = 'frame.jpg';
+const IMG_SRC = 'capture.jpg';
 const HANDLE_SIZE = 8;
 
 // Initial DISPLAY_CROP = (left, top, right, bottom)
