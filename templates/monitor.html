@@ -174,7 +174,6 @@
         }
 
         requestErrorEl.hidden = true;
-        fixedFrameEl.src = `data:image/jpeg;base64,${data.fixed_frame_b64}`;
         ocrEl.textContent = data.ocr_text || "(empty)";
         ocrEl.className = data.is_error ? "value error" : "value";
         errorEl.textContent = data.error_text || "none";
@@ -188,8 +187,20 @@
       }
     }
 
+    async function refreshDisplay() {
+      try {
+        const response = await fetch(`/api/display?display_crop=${encodeURIComponent(displayCrop)}`, { cache: "no-store" });
+        const data = await response.json();
+        if (data.ok) {
+          fixedFrameEl.src = `data:image/jpeg;base64,${data.fixed_frame_b64}`;
+        }
+      } catch (_) {}
+      refreshDisplay();
+    }
+
     refreshMonitor();
     setInterval(refreshMonitor, 4000);
+    refreshDisplay();
   </script>
 </body>
 </html>

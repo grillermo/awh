@@ -6,7 +6,7 @@ import os
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, capture_frame, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, save_display_crop, save_display_view
+from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, fix_perspective_frame, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -85,6 +85,18 @@ def api_save_view():
     return jsonify({"ok": True, "view": safe})
 
 
+@app.get("/api/display")
+def display_frame():
+    try:
+        display_crop = parse_display_crop_arg(request.args.get("display_crop"))
+        frame = load_fresh_frame()
+        cropped = crop_frame(frame, coords=display_crop)
+        fixed = fix_perspective_frame(cropped)
+        return jsonify({"ok": True, "fixed_frame_b64": encode_jpg(fixed)})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.get("/monitor")
 def monitor():
     crop = request.args.get("display_crop", ",".join(str(v) for v in DISPLAY_CROP))
@@ -106,7 +118,6 @@ def monitor_data():
                 "ok": True,
                 "display_crop": [round(v, 3) for v in display_crop],
                 "cropped_frame_b64": encode_jpg(result["cropped_frame"]),
-                "fixed_frame_b64": encode_jpg(result["fixed_frame"]),
                 "ocr_text": result["ocr_text"],
                 "error_text": result["error_text"],
                 "is_error": result["is_error"],
