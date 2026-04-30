@@ -191,11 +191,11 @@
       try {
         const response = await fetch(`/api/display?display_crop=${encodeURIComponent(displayCrop)}`, { cache: "no-store" });
         const data = await response.json();
+        setTimeout(refreshDisplay, 1000)
         if (data.ok) {
           fixedFrameEl.src = `data:image/jpeg;base64,${data.fixed_frame_b64}`;
         }
       } catch (_) {}
-      refreshDisplay();
     }
 
     refreshMonitor();

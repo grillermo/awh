@@ -98,12 +98,15 @@ def capture_webcam(seconds=2):
     frames = []
 
     start = time.time()
+    frame_count = 0
     while time.time() - start < seconds:
         ret, frame = cap.read()
         if not ret:
             print("[capture] WARNING: Failed to read frame, retrying…")
             continue
-        frames.append(frame)
+        frame_count += 1
+        if frame_count % 2 == 0:
+            frames.append(frame)
 
     cap.release()
     print(f"[capture] Captured {len(frames)} frames ({fps:.1f} fps reported)")
@@ -299,27 +302,33 @@ def classify_ocr_text(text):
 
 def error_showing_on_stream(frames):
     """
-    Iterate all frames until one yields non-empty OCR text.
-    Error state = first non-empty text does NOT begin with a digit.
+    OCR all frames, classify each, then vote: majority error → is_error True.
     Returns (is_error: bool, ocr_results: list[dict])
     """
     reader = get_ocr_reader()
 
-    print(f"[ocr] Scanning {len(frames)} frames until first non-empty OCR hit")
+    print(f"[ocr] Scanning all {len(frames)} frames for voting")
+    ocr_results = []
     for idx, frame in enumerate(frames):
         detections = reader.readtext(frame, detail=0)
         text = " ".join(detections).strip()
         print(f"[ocr] Frame {idx}: detected text = {repr(text)}")
         if not text:
             continue
-
         is_error = not bool(re.match(r'^\d', text))
         label = "ERROR STATE" if is_error else "no error"
-        print(f"[ocr] First non-empty hit at frame {idx}: {repr(text)} → {label}")
-        return is_error, [{"frame_idx": idx, "text": text, "error": is_error}]
+        print(f"[ocr] Frame {idx}: {repr(text)} → {label}")
+        ocr_results.append({"frame_idx": idx, "text": text, "error": is_error})
 
-    print("[ocr] All frames gave empty OCR → treating as no error")
-    return False, []
+    if not ocr_results:
+        print("[ocr] All frames gave empty OCR → treating as no error")
+        return False, []
+
+    error_votes = sum(1 for r in ocr_results if r["error"])
+    no_error_votes = len(ocr_results) - error_votes
+    is_error = error_votes > no_error_votes
+    print(f"[ocr] Vote: {error_votes} error / {no_error_votes} no-error → {'ERROR STATE' if is_error else 'no error'}")
+    return is_error, ocr_results
 
 
 async def _reset_tapo_async():
@@ -366,8 +375,9 @@ def monitor_and_reset(display_crop=DISPLAY_CROP):
         print(f"[ocr] Re-check result: {'error' if is_error else 'no error'}")
 
     if ocr_results:
-        fidx = ocr_results[0]["frame_idx"]
-        ocr_text = ocr_results[0]["text"]
+        representative = next((r for r in ocr_results if r["error"] == is_error), ocr_results[0])
+        fidx = representative["frame_idx"]
+        ocr_text = representative["text"]
     else:
         fidx = len(frames) - 1
         ocr_text = ""
