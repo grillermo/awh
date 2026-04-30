@@ -354,6 +354,17 @@ def monitor_and_reset(display_crop=DISPLAY_CROP):
 
     is_error, ocr_results = error_showing_on_stream(fixed)
 
+    if is_error:
+        print("[ocr] Non-digit detected → re-checking in 3 seconds")
+        time.sleep(3)
+        frames = capture_webcam(seconds=3)
+        if not frames:
+            raise RuntimeError("Failed to capture frames from RTSP stream")
+        cropped = crop_to_screen(frames, coords=display_crop)
+        fixed = fix_perspective(cropped)
+        is_error, ocr_results = error_showing_on_stream(fixed)
+        print(f"[ocr] Re-check result: {'error' if is_error else 'no error'}")
+
     if ocr_results:
         fidx = ocr_results[0]["frame_idx"]
         ocr_text = ocr_results[0]["text"]
