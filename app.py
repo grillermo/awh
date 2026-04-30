@@ -106,6 +106,7 @@ def monitor_data():
                 "ok": True,
                 "display_crop": [round(v, 3) for v in display_crop],
                 "cropped_frame_b64": encode_jpg(result["cropped_frame"]),
+                "fixed_frame_b64": encode_jpg(result["fixed_frame"]),
                 "ocr_text": result["ocr_text"],
                 "error_text": result["error_text"],
                 "is_error": result["is_error"],

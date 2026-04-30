@@ -135,8 +135,8 @@
   </div>
   <div class="layout">
     <section class="panel">
-      <h2>Cropped Frame</h2>
-      <img id="frame" alt="Latest cropped display frame">
+      <h2>Fixed Frame</h2>
+      <img id="fixed-frame" alt="Perspective-corrected display frame">
     </section>
     <section class="panel">
       <div id="status" class="status pending">Waiting for first refresh</div>
@@ -152,7 +152,7 @@
 
   <script>
     const displayCrop = {{ display_crop|tojson }};
-    const frameEl = document.getElementById("frame");
+    const fixedFrameEl = document.getElementById("fixed-frame");
     const ocrEl = document.getElementById("ocr-text");
     const errorEl = document.getElementById("error-text");
     const metaEl = document.getElementById("meta");
@@ -174,7 +174,7 @@
         }
 
         requestErrorEl.hidden = true;
-        frameEl.src = `data:image/jpeg;base64,${data.cropped_frame_b64}`;
+        fixedFrameEl.src = `data:image/jpeg;base64,${data.fixed_frame_b64}`;
         ocrEl.textContent = data.ocr_text || "(empty)";
         ocrEl.className = data.is_error ? "value error" : "value";
         errorEl.textContent = data.error_text || "none";
