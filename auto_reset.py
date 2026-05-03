@@ -79,7 +79,7 @@ def capture_frame(rtsp_url=RTSP_URL):
     ret, frame = cap.read()
     cap.release()
 
-    if not ret:
+    if not ret or frame is None or frame.size == 0:
         print("[capture] ERROR: Failed to read frame", file=sys.stderr)
         return None
 
@@ -105,7 +105,7 @@ def capture_webcam(seconds=2):
             print("[capture] WARNING: Failed to read frame, retrying…")
             continue
         frame_count += 1
-        if frame_count % 2 == 0:
+        if frame_count % 5 == 0:
             frames.append(frame)
 
     cap.release()
@@ -117,7 +117,10 @@ def crop_frame(frame, coords=DISPLAY_CROP):
     left_f, top_f, right_f, bottom_f = coords
     h, w = frame.shape[:2]
     l, t, r, b = int(w * left_f), int(h * top_f), int(w * right_f), int(h * bottom_f)
-    return frame[t:b, l:r]
+    cropped = frame[t:b, l:r]
+    if cropped.size == 0:
+        raise ValueError(f"crop_frame produced empty array: frame={w}x{h}, crop=l{l}:r{r},t{t}:b{b} from coords={coords}")
+    return cropped
 
 
 def crop_to_screen(frames, coords=DISPLAY_CROP):

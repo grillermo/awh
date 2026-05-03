@@ -107,6 +107,10 @@
       <canvas id="c"></canvas>
       <button id="monitor-btn" type="button">monitor</button>
     </div>
+    <div id="preview-wrap" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#111;border-top:1px solid #333;padding:8px 12px;z-index:100;">
+      <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Crop preview</div>
+      <canvas id="preview" style="display:block;max-width:100%;image-rendering:pixelated;border:1px solid #333;"></canvas>
+    </div>
     <div id="output">
       <div id="value-box">
         <span id="crop-value"></span>
@@ -133,6 +137,9 @@
 
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
+  const previewCanvas = document.getElementById("preview");
+  const previewCtx = previewCanvas.getContext("2d");
+  const previewWrap = document.getElementById("preview-wrap");
   const img = new Image();
   const monitorBtn = document.getElementById("monitor-btn");
   const copyBtn = document.getElementById("copy-btn");
@@ -350,9 +357,18 @@
     draw();
   }
 
+  function saveCropSilent() {
+    fetch("/api/save-crop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ crop: [rect.l, rect.t, rect.r, rect.b] }),
+    }).catch(() => {});
+  }
+
   function endDrag() {
     drag = null;
     canvas.style.cursor = "crosshair";
+    saveCropSilent();
   }
 
   function getPinchPointers() {
@@ -439,6 +455,20 @@
     ctx.restore();
     updateOutput();
     updateMonitorButton();
+    drawPreview();
+  }
+
+  function drawPreview() {
+    if (!imgW || !imgH) return;
+    const pw = (rect.r - rect.l) * imgW;
+    const ph = (rect.b - rect.t) * imgH;
+    if (pw < 1 || ph < 1) return;
+    const maxW = Math.min(canvasW, 600);
+    const ratio = Math.min(maxW / pw, 300 / ph);
+    previewCanvas.width = Math.round(pw * ratio);
+    previewCanvas.height = Math.round(ph * ratio);
+    previewCtx.drawImage(img, rect.l * imgW, rect.t * imgH, pw, ph, 0, 0, previewCanvas.width, previewCanvas.height);
+    previewWrap.style.display = "block";
   }
 
   function copyValue() {

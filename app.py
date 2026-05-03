@@ -2,13 +2,63 @@
 
 import base64
 import os
+import threading
+import time
 
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, fix_perspective_frame, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, save_display_crop, save_display_view
+from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, fix_perspective_frame, get_ocr_reader, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
+
+
+class _FrameState:
+    def __init__(self):
+        self.frame_b64 = None
+        self.ocr_text = ""
+        self.captured_at = None
+        self._lock = threading.Lock()
+
+    def update(self, frame_b64, ocr_text):
+        with self._lock:
+            self.frame_b64 = frame_b64
+            self.ocr_text = ocr_text
+            self.captured_at = time.time()
+
+    def snapshot(self):
+        with self._lock:
+            return {
+                "frame_b64": self.frame_b64,
+                "ocr_text": self.ocr_text,
+                "captured_at": self.captured_at,
+            }
+
+
+_state = _FrameState()
+
+
+def _capture_loop():
+    reader = get_ocr_reader()
+    crop = load_display_crop()
+    while True:
+        try:
+            frame = capture_frame()
+            if frame is not None:
+                cropped = crop_frame(frame, coords=crop)
+                fixed = fix_perspective_frame(cropped)
+                detections = reader.readtext(fixed, detail=0)
+                ocr_text = " ".join(detections).strip()
+                ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if ok:
+                    b64 = base64.b64encode(buf).decode()
+                    _state.update(b64, ocr_text)
+        except Exception as exc:
+            print(f"[live] capture error: {exc}")
+
+
+_bg_thread = threading.Thread(target=_capture_loop, daemon=True)
+_bg_thread.start()
 
 
 def encode_jpg(frame, quality=85):
@@ -125,6 +175,25 @@ def monitor_data():
         )
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.get("/last_frame")
+def last_frame():
+    snap = _state.snapshot()
+    if snap["frame_b64"] is None:
+        return jsonify({"ok": False, "error": "no frame yet"}), 503
+    return jsonify({"ok": True, "frame_b64": snap["frame_b64"], "ocr_text": snap["ocr_text"]})
+
+
+@app.post("/reset")
+def reset():
+    threading.Thread(target=reset_tapo100, daemon=True).start()
+    return jsonify({"ok": True, "message": "reset initiated"})
+
+
+@app.get("/live")
+def live():
+    return render_template("live.html")
 
 
 if __name__ == "__main__":
