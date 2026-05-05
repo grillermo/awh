@@ -291,6 +291,7 @@
           if (!resetInProgress && isErr) {
             recordChainError();
           }
+          await new Promise(r => setTimeout(r, 1000));
         } catch (e) {
           barError();
           await new Promise(r => setTimeout(r, 500));
