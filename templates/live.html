@@ -103,6 +103,47 @@
       box-shadow: 0 0 6px #c44;
       transition: width 0.2s ease;
     }
+    #crop-controls {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+    .edge-ctrl {
+      position: absolute;
+      display: flex;
+      gap: 6px;
+      pointer-events: all;
+    }
+    .left-ctrl  { left: 8px;   top: 50%; transform: translateY(-50%); flex-direction: column; }
+    .right-ctrl { right: 8px;  top: 50%; transform: translateY(-50%); flex-direction: column; }
+    .top-ctrl   { top: 8px;    left: 50%; transform: translateX(-50%); flex-direction: row; }
+    .bottom-ctrl{ bottom: 12px; left: 50%; transform: translateX(-50%); flex-direction: row; }
+    .arrow-btn {
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 4px;
+      width: 38px;
+      height: 38px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .arrow-btn:active { background: rgba(255,255,255,0.2); }
+    .crop-flash {
+      position: absolute;
+      top: 4px; right: 8px;
+      font-size: 11px;
+      color: #8f8;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .crop-flash.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -110,6 +151,25 @@
   <main>
     <div id="frame-pane">
       <img id="frame-img" alt="corrected frame" />
+      <div id="crop-controls">
+        <div class="edge-ctrl left-ctrl">
+          <button class="arrow-btn" data-edge="left" data-dir="-1">←</button>
+          <button class="arrow-btn" data-edge="left" data-dir="1">→</button>
+        </div>
+        <div class="edge-ctrl right-ctrl">
+          <button class="arrow-btn" data-edge="right" data-dir="-1">←</button>
+          <button class="arrow-btn" data-edge="right" data-dir="1">→</button>
+        </div>
+        <div class="edge-ctrl top-ctrl">
+          <button class="arrow-btn" data-edge="top" data-dir="-1">↑</button>
+          <button class="arrow-btn" data-edge="top" data-dir="1">↓</button>
+        </div>
+        <div class="edge-ctrl bottom-ctrl">
+          <button class="arrow-btn" data-edge="bottom" data-dir="-1">↑</button>
+          <button class="arrow-btn" data-edge="bottom" data-dir="1">↓</button>
+        </div>
+        <div class="crop-flash" id="crop-flash"></div>
+      </div>
     </div>
     <div id="ocr-pane">
       <div id="ocr-label">OCR Text</div>
@@ -162,7 +222,7 @@
       chainTimer = setTimeout(() => {
         chainCount = 0;
         updateErrorBar();
-      }, 2000);
+      }, 3000);
     }
 
     async function triggerReset() {
@@ -256,6 +316,35 @@
     window.addEventListener('resize', tryFullscreen);
     document.body.addEventListener('click', tryFullscreen);
     tryFullscreen();
+
+    const cropFlash = document.getElementById('crop-flash');
+    let flashTimer = null;
+
+    function showCropFlash(crop) {
+      cropFlash.textContent = crop.map(v => v.toFixed(3)).join(', ');
+      cropFlash.classList.add('show');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => cropFlash.classList.remove('show'), 1500);
+    }
+
+    document.querySelectorAll('.arrow-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const edge = btn.dataset.edge;
+        const dir = parseInt(btn.dataset.dir, 10);
+        try {
+          const res = await fetch('/api/update-crop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ edge, dir }),
+          });
+          const data = await res.json();
+          if (data.ok) showCropFlash(data.crop);
+        } catch (err) {
+          console.error('[crop] update failed', err);
+        }
+      });
+    });
   </script>
 </body>
 </html>

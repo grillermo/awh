@@ -5,12 +5,21 @@ import os
 import threading
 import time
 
+from setproctitle import setproctitle
+setproctitle("awh")
+
 import cv2
 from flask import Flask, jsonify, render_template, request
 
 from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, fix_perspective_frame, get_ocr_reader, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
+
+
+CROP_STEP = 0.001
+
+_crop_lock = threading.Lock()
+_live_crop = list(load_display_crop())
 
 
 class _FrameState:
@@ -26,6 +35,12 @@ class _FrameState:
             self.ocr_text = ocr_text
             self.captured_at = time.time()
 
+    def clear(self):
+        with self._lock:
+            self.frame_b64 = None
+            self.ocr_text = ""
+            self.captured_at = None
+
     def snapshot(self):
         with self._lock:
             return {
@@ -40,9 +55,10 @@ _state = _FrameState()
 
 def _capture_loop():
     reader = get_ocr_reader()
-    crop = load_display_crop()
     while True:
         try:
+            with _crop_lock:
+                crop = tuple(_live_crop)
             frame = capture_frame()
             if frame is not None:
                 cropped = crop_frame(frame, coords=crop)
@@ -50,7 +66,8 @@ def _capture_loop():
                 detections = reader.readtext(fixed, detail=0)
                 ocr_text = " ".join(detections).strip()
                 ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                if ok:
+                print("capturing, cropping and fixing frame")
+                if ok and ocr_text:
                     b64 = base64.b64encode(buf).decode()
                     _state.update(b64, ocr_text)
         except Exception as exc:
@@ -187,8 +204,35 @@ def last_frame():
 
 @app.post("/reset")
 def reset():
-    threading.Thread(target=reset_tapo100, daemon=True).start()
+    reset_tapo100()
     return jsonify({"ok": True, "message": "reset initiated"})
+
+
+@app.post("/api/update-crop")
+def api_update_crop():
+    global _live_crop
+    data = request.get_json(force=True, silent=True) or {}
+    edge = data.get("edge")
+    direction = data.get("dir")
+
+    if edge not in ("left", "top", "right", "bottom"):
+        return jsonify({"ok": False, "error": "edge must be left/top/right/bottom"}), 400
+    if direction not in (-1, 1):
+        return jsonify({"ok": False, "error": "dir must be -1 or 1"}), 400
+
+    idx = {"left": 0, "top": 1, "right": 2, "bottom": 3}[edge]
+
+    with _crop_lock:
+        new_crop = list(_live_crop)
+        new_crop[idx] = round(new_crop[idx] + direction * CROP_STEP, 4)
+        new_crop[idx] = max(0.0, min(1.0, new_crop[idx]))
+        if new_crop[0] >= new_crop[2] or new_crop[1] >= new_crop[3]:
+            return jsonify({"ok": False, "error": "invalid crop bounds"}), 400
+        _live_crop = new_crop
+
+    save_display_crop(tuple(new_crop))
+    _state.clear()
+    return jsonify({"ok": True, "crop": new_crop})
 
 
 @app.get("/live")
