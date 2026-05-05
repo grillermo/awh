@@ -51,11 +51,15 @@ class _FrameState:
 
 
 _state = _FrameState()
+_last_frame_requested_at = 0.0
 
 
 def _capture_loop():
     reader = get_ocr_reader()
     while True:
+        if time.time() - _last_frame_requested_at > 10:
+            time.sleep(1)
+            continue
         try:
             with _crop_lock:
                 crop = tuple(_live_crop)
@@ -196,6 +200,8 @@ def monitor_data():
 
 @app.get("/last_frame")
 def last_frame():
+    global _last_frame_requested_at
+    _last_frame_requested_at = time.time()
     snap = _state.snapshot()
     if snap["frame_b64"] is None:
         return jsonify({"ok": False, "error": "no frame yet"}), 503
