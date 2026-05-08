@@ -50,6 +50,19 @@
       overflow: hidden;
     }
     #ocr-label { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+    #reset-btn {
+      background: rgba(180,60,60,0.2);
+      color: #c44;
+      border: 1px solid #c44;
+      border-radius: 4px;
+      padding: 8px 24px;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      touch-action: manipulation;
+    }
+    #reset-btn:active { background: rgba(180,60,60,0.5); }
     #ocr-text {
       font-size: clamp(64px, 15vw, 200px);
       font-weight: bold;
@@ -174,6 +187,7 @@
     <div id="ocr-pane">
       <div id="ocr-label">OCR Text</div>
       <div id="ocr-text">—</div>
+      <button id="reset-btn">RESET</button>
       <div id="reset-history"></div>
     </div>
   </main>
@@ -225,16 +239,11 @@
       }, 3000);
     }
 
-    async function triggerReset() {
+    function triggerReset() {
       resetInProgress = true;
       addResetMarker();
-      try {
-        await fetch('/reset', { method: 'POST' });
-      } catch (e) {
-        console.error('[reset] fetch failed', e);
-      }
-      await new Promise(r => setTimeout(r, 15000));
-      resetInProgress = false;
+      fetch('/reset', { method: 'POST' }).catch(e => console.error('[reset] fetch failed', e));
+      setTimeout(() => { resetInProgress = false; }, 15000);
     }
 
     function barStart() {
@@ -327,6 +336,11 @@
       clearTimeout(flashTimer);
       flashTimer = setTimeout(() => cropFlash.classList.remove('show'), 1500);
     }
+
+    document.getElementById('reset-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!resetInProgress) triggerReset();
+    });
 
     document.querySelectorAll('.arrow-btn').forEach(btn => {
       btn.addEventListener('click', async e => {

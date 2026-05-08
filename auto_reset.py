@@ -334,24 +334,23 @@ def error_showing_on_stream(frames):
     return is_error, ocr_results
 
 
-async def _reset_tapo_async():
+def reset_tapo100():
     from tapo import ApiClient
 
-    client = ApiClient(TAPO_EMAIL, TAPO_PASSWORD)
-    device = await client.p100(TAPO_IP)
-    print(f"[tapo] Turning off {TAPO_IP}")
-    await device.off()
-    print("[tapo] Waiting 10 seconds")
-    await asyncio.sleep(10)
-    print(f"[tapo] Turning on {TAPO_IP}")
-    await device.on()
-    print("[tapo] Reset complete")
+    async def _do():
+        client = ApiClient(TAPO_EMAIL, TAPO_PASSWORD)
+        device = await client.p100(TAPO_IP)
+        print(f"[tapo] Turning off {TAPO_IP}")
+        await device.off()
+        print("[tapo] Waiting 10 seconds")
+        await asyncio.sleep(10)
+        print(f"[tapo] Turning on {TAPO_IP}")
+        await device.on()
+        print("[tapo] Reset complete")
 
-
-def reset_tapo100():
     print("[tapo] Resetting P100 plug")
     try:
-        asyncio.run(_reset_tapo_async())
+        asyncio.run(_do())
     except Exception as e:
         print(f"[tapo] ERROR: {e}", file=sys.stderr)
 
