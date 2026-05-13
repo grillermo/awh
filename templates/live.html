@@ -204,6 +204,7 @@
     let chainCount = 0;
     let chainTimer = null;
     let resetInProgress = false;
+    let consecutiveResets = 0;
 
     function updateErrorBar() {
       errorFill.style.width = (chainCount / 4 * 100) + '%';
@@ -248,6 +249,8 @@
     }
 
     function triggerReset() {
+      if (consecutiveResets >= 3) return;
+      consecutiveResets++;
       resetInProgress = true;
       addResetMarker();
       fetch('/reset', { method: 'POST' }).catch(e => console.error('[reset] fetch failed', e));
@@ -306,6 +309,8 @@
           ocrEl.classList.toggle('is-error', isErr);
           lastTs = Date.now();
 
+          if (!isErr) consecutiveResets = 0;
+
           if (!resetInProgress && isErr) {
             recordChainError();
           }
@@ -348,7 +353,7 @@
 
     document.getElementById('reset-btn').addEventListener('click', e => {
       e.stopPropagation();
-      if (!resetInProgress) triggerReset();
+      window.webkit.messageHandlers.soundBridge.postMessage("playSound");
     });
 
     document.querySelectorAll('.arrow-btn').forEach(btn => {
