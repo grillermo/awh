@@ -324,23 +324,6 @@
 
     loop();
 
-    function isLandscape() {
-      return window.innerWidth > window.innerHeight;
-    }
-
-    function tryFullscreen() {
-      if (!document.fullscreenElement && isLandscape()) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if (document.fullscreenElement && !isLandscape()) {
-        document.exitFullscreen().catch(() => {});
-      }
-    }
-
-    window.addEventListener('orientationchange', () => setTimeout(tryFullscreen, 100));
-    window.addEventListener('resize', tryFullscreen);
-    document.body.addEventListener('click', tryFullscreen);
-    tryFullscreen();
-
     const cropFlash = document.getElementById('crop-flash');
     let flashTimer = null;
 
