@@ -68,13 +68,12 @@ def _capture_loop():
             if frame is not None:
                 cropped = crop_frame(frame, coords=crop)
                 fixed = fix_perspective_frame(cropped)
-                detections = reader.readtext(fixed, detail=0)
+                detections = reader.readtext(cropped, detail=0)
                 ocr_text = " ".join(detections).strip()
                 ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 print("capturing, cropping and fixing frame")
-                if ok and ocr_text:
-                    b64 = base64.b64encode(buf).decode()
-                    _state.update(b64, ocr_text)
+                b64 = base64.b64encode(buf).decode()
+                _state.update(b64, ocr_text)
         except Exception as exc:
             print(f"[live] capture error: {exc}")
             traceback.print_exc()
