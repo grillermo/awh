@@ -63,6 +63,25 @@
       touch-action: manipulation;
     }
     #reset-btn:active { background: rgba(180,60,60,0.5); }
+    #auto-reset-toggle {
+      background: rgba(60,60,60,0.2);
+      color: #888;
+      border: 1px solid #888;
+      border-radius: 4px;
+      padding: 14px 28px;
+      font-family: monospace;
+      font-size: 15px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      touch-action: manipulation;
+      min-width: 260px;
+    }
+    #auto-reset-toggle.is-on {
+      background: rgba(200,80,80,0.25);
+      color: #f88;
+      border-color: #c44;
+    }
+    #auto-reset-toggle:active { opacity: 0.7; }
     #ocr-text {
       font-size: clamp(64px, 15vw, 200px);
       font-weight: bold;
@@ -188,6 +207,7 @@
       <div id="ocr-label">OCR Text</div>
       <div id="ocr-text">—</div>
       <button id="reset-btn">RESET</button>
+      <button id="auto-reset-toggle">DISABLE AUTO-RESET</button>
       <div id="reset-history"></div>
     </div>
   </main>
@@ -205,6 +225,7 @@
     let chainTimer = null;
     let resetInProgress = false;
     let consecutiveResets = 0;
+    let autoResetDisabled = false;
 
     function updateErrorBar() {
       errorFill.style.width = (chainCount / 4 * 100) + '%';
@@ -230,7 +251,7 @@
       if (chainCount >= 4) {
         chainCount = 0;
         updateErrorBar();
-        triggerReset();
+        if (!autoResetDisabled) triggerReset();
         return;
       }
 
@@ -325,6 +346,13 @@
     loop();
 
     document.getElementById('reset-btn').addEventListener('click', triggerReset);
+
+    const autoResetToggle = document.getElementById('auto-reset-toggle');
+    autoResetToggle.addEventListener('click', () => {
+      autoResetDisabled = !autoResetDisabled;
+      autoResetToggle.classList.toggle('is-on', autoResetDisabled);
+      autoResetToggle.textContent = autoResetDisabled ? 'AUTO-RESET DISABLED' : 'DISABLE AUTO-RESET';
+    });
 
     const cropFlash = document.getElementById('crop-flash');
     let flashTimer = null;
