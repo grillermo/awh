@@ -4,6 +4,7 @@ import base64
 import os
 import threading
 import time
+import traceback
 
 from setproctitle import setproctitle
 setproctitle("awh")
@@ -76,6 +77,7 @@ def _capture_loop():
                     _state.update(b64, ocr_text)
         except Exception as exc:
             print(f"[live] capture error: {exc}")
+            traceback.print_exc()
 
 
 _bg_thread = threading.Thread(target=_capture_loop, daemon=True)
@@ -123,6 +125,7 @@ def index():
         frame_b64 = encode_jpg(frame)
     except Exception as exc:
         error = str(exc)
+        traceback.print_exc()
 
     initial_view = load_display_view()
     return render_template("index.html", frame_b64=frame_b64, crop=crop, initial_view=initial_view, error=error)
@@ -165,6 +168,7 @@ def display_frame():
         fixed = fix_perspective_frame(cropped)
         return jsonify({"ok": True, "fixed_frame_b64": encode_jpg(fixed)})
     except Exception as exc:
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
@@ -195,6 +199,7 @@ def monitor_data():
             }
         )
     except Exception as exc:
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
@@ -244,6 +249,12 @@ def api_update_crop():
 @app.get("/live")
 def live():
     return render_template("live.html")
+
+
+@app.errorhandler(Exception)
+def handle_exception(exc):
+    traceback.print_exc()
+    return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 if __name__ == "__main__":
