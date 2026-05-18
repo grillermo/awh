@@ -240,9 +240,9 @@
       }, 3000);
     }
 
-    function call_shortcut() {
+    function makeSound() {
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shortcutBridge) {
-          window.webkit.messageHandlers.shortcutBridge.postMessage("runShortcut");
+          window.webkit.messageHandlers.soundBridge.postMessage("playSound");
       } else {
           console.error("Swift Bridge not detected.");
       }
@@ -254,7 +254,7 @@
       resetInProgress = true;
       addResetMarker();
       fetch('/reset', { method: 'POST' }).catch(e => console.error('[reset] fetch failed', e));
-      call_shortcut();
+      makeSound();
       setTimeout(() => { resetInProgress = false; }, 15000);
     }
 
