@@ -213,175 +213,232 @@
   </main>
   <div id="error-bar"><div id="error-fill"></div></div>
   <script>
-    const img = document.getElementById('frame-img');
-    const topbar = document.getElementById('topbar');
-    const ocrEl = document.getElementById('ocr-text');
-    const errorFill = document.getElementById('error-fill');
-    const resetHistory = document.getElementById('reset-history');
-    let lastTs = null;
-    let barTimer = null;
+    (() => {
+      const reportError = payload => {
+        const body = JSON.stringify({
+          ...payload,
+          href: window.location.href,
+          userAgent: navigator.userAgent,
+          reportedAt: new Date().toISOString(),
+        });
 
-    let chainCount = 0;
-    let chainTimer = null;
-    let resetInProgress = false;
-    let consecutiveResets = 0;
-    let autoResetDisabled = false;
-
-    function updateErrorBar() {
-      errorFill.style.width = (chainCount / 4 * 100) + '%';
-    }
-
-    function addResetMarker() {
-      const now = new Date();
-      const hhmm = now.toTimeString().slice(0, 5);
-      const marker = document.createElement('div');
-      marker.className = 'reset-marker';
-      const label = document.createElement('span');
-      label.className = 'reset-marker-time';
-      label.textContent = hhmm;
-      marker.appendChild(label);
-      resetHistory.prepend(marker);
-    }
-
-    function recordChainError() {
-      clearTimeout(chainTimer);
-      chainCount++;
-      updateErrorBar();
-
-      if (chainCount >= 4) {
-        chainCount = 0;
-        updateErrorBar();
-        if (!autoResetDisabled) triggerReset();
-        return;
-      }
-
-      chainTimer = setTimeout(() => {
-        chainCount = 0;
-        updateErrorBar();
-      }, 3000);
-    }
-
-    function makeSound() {
-      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shortcutBridge) {
-          window.webkit.messageHandlers.soundBridge.postMessage("playSound");
-      } else {
-          console.error("Swift Bridge not detected.");
-      }
-    }
-
-    function triggerReset() {
-      if (consecutiveResets >= 3) return;
-      consecutiveResets++;
-      resetInProgress = true;
-      addResetMarker();
-      fetch('/reset', { method: 'POST' }).catch(e => console.error('[reset] fetch failed', e));
-      makeSound();
-      setTimeout(() => { resetInProgress = false; }, 15000);
-    }
-
-    function barStart() {
-      clearTimeout(barTimer);
-      topbar.style.transition = 'width 0.2s ease, opacity 0.3s ease';
-      topbar.classList.remove('hidden');
-      topbar.style.width = '0%';
-      requestAnimationFrame(() => {
-        topbar.style.transition = 'width 8s cubic-bezier(0.1,0.05,0,1), opacity 0.3s ease';
-        topbar.style.width = '85%';
-      });
-    }
-
-    function barDone() {
-      topbar.style.transition = 'width 0.15s ease, opacity 0.4s ease 0.15s';
-      topbar.style.width = '100%';
-      barTimer = setTimeout(() => topbar.classList.add('hidden'), 550);
-    }
-
-    function barError() {
-      topbar.style.width = '100%';
-      topbar.style.background = '#c44';
-      topbar.style.boxShadow = '0 0 8px #c44';
-      barTimer = setTimeout(() => {
-        topbar.classList.add('hidden');
-        topbar.style.background = '#f00';
-        topbar.style.boxShadow = '0 0 8px #f00';
-      }, 600);
-    }
-
-    function renderFrame(data) {
-      return new Promise(resolve => {
-        img.onload = () => { barDone(); resolve(); };
-        img.onerror = () => { barDone(); resolve(); };
-        img.src = 'data:image/jpeg;base64,' + data.frame_b64;
-      });
-    }
-
-    async function loop() {
-      while (true) {
         try {
-          barStart();
-          const res = await fetch('/last_frame');
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error || 'no frame');
-
-          await renderFrame(data);
-          ocrEl.textContent = data.ocr_text || '—';
-          const isErr = data.ocr_text && !/^\d/.test(data.ocr_text);
-          ocrEl.classList.toggle('is-error', isErr);
-          lastTs = Date.now();
-
-          if (!isErr) consecutiveResets = 0;
-
-          if (!resetInProgress && isErr) {
-            recordChainError();
+          if (navigator.sendBeacon) {
+            const blob = new Blob([body], { type: 'application/json' });
+            navigator.sendBeacon('/report-error', blob);
+            return;
           }
-          await new Promise(r => setTimeout(r, 1000));
-        } catch (e) {
-          barError();
-          await new Promise(r => setTimeout(r, 500));
-        }
-      }
-    }
+        } catch (_) {}
 
-    loop();
-
-    document.getElementById('reset-btn').addEventListener('click', triggerReset);
-
-    const autoResetToggle = document.getElementById('auto-reset-toggle');
-    autoResetToggle.addEventListener('click', () => {
-      autoResetDisabled = !autoResetDisabled;
-      autoResetToggle.classList.toggle('is-on', autoResetDisabled);
-      autoResetToggle.textContent = autoResetDisabled ? 'AUTO-RESET DISABLED' : 'DISABLE AUTO-RESET';
-    });
-
-    const cropFlash = document.getElementById('crop-flash');
-    let flashTimer = null;
-
-    function showCropFlash(crop) {
-      cropFlash.textContent = crop.map(v => v.toFixed(3)).join(', ');
-      cropFlash.classList.add('show');
-      clearTimeout(flashTimer);
-      flashTimer = setTimeout(() => cropFlash.classList.remove('show'), 1500);
-    }
-
-    document.querySelectorAll('.arrow-btn').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        e.stopPropagation();
-        const edge = btn.dataset.edge;
-        const dir = parseInt(btn.dataset.dir, 10);
         try {
-          const res = await fetch('/api/update-crop', {
+          fetch('/report-error', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ edge, dir }),
-          });
-          const data = await res.json();
-          if (data.ok) showCropFlash(data.crop);
-        } catch (err) {
-          console.error('[crop] update failed', err);
-        }
+            body,
+            keepalive: true,
+          }).catch(() => {});
+        } catch (_) {}
+      };
+
+      window.addEventListener('error', event => {
+        reportError({
+          type: 'error',
+          message: event.message,
+          source: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          stack: event.error && event.error.stack ? event.error.stack : null,
+        });
       });
-    });
+
+      window.addEventListener('unhandledrejection', event => {
+        const reason = event.reason;
+        reportError({
+          type: 'unhandledrejection',
+          message: reason && reason.message ? reason.message : String(reason),
+          stack: reason && reason.stack ? reason.stack : null,
+          reason,
+        });
+      });
+
+      try {
+        const img = document.getElementById('frame-img');
+        const topbar = document.getElementById('topbar');
+        const ocrEl = document.getElementById('ocr-text');
+        const errorFill = document.getElementById('error-fill');
+        const resetHistory = document.getElementById('reset-history');
+        let lastTs = null;
+        let barTimer = null;
+
+        let chainCount = 0;
+        let chainTimer = null;
+        let resetInProgress = false;
+        let consecutiveResets = 0;
+        let autoResetDisabled = false;
+
+        function updateErrorBar() {
+          errorFill.style.width = (chainCount / 4 * 100) + '%';
+        }
+
+        function addResetMarker() {
+          const now = new Date();
+          const hhmm = now.toTimeString().slice(0, 5);
+          const marker = document.createElement('div');
+          marker.className = 'reset-marker';
+          const label = document.createElement('span');
+          label.className = 'reset-marker-time';
+          label.textContent = hhmm;
+          marker.appendChild(label);
+          resetHistory.prepend(marker);
+        }
+
+        function recordChainError() {
+          clearTimeout(chainTimer);
+          chainCount++;
+          updateErrorBar();
+
+          if (chainCount >= 4) {
+            chainCount = 0;
+            updateErrorBar();
+            if (!autoResetDisabled) triggerReset();
+            return;
+          }
+
+          chainTimer = setTimeout(() => {
+            chainCount = 0;
+            updateErrorBar();
+          }, 3000);
+        }
+
+        function makeSound() {
+              window.webkit.messageHandlers.soundBridge.postMessage("playSound");
+        }
+
+        function triggerReset() {
+          if (consecutiveResets >= 3) return;
+          consecutiveResets++;
+          resetInProgress = true;
+          addResetMarker();
+          fetch('/reset', { method: 'POST' }).catch(e => console.error('[reset] fetch failed', e));
+          makeSound();
+          setTimeout(() => { 
+              resetInProgress = false;
+              makeSound();
+          }, 15000);
+        }
+
+        function barStart() {
+          clearTimeout(barTimer);
+          topbar.style.transition = 'width 0.2s ease, opacity 0.3s ease';
+          topbar.classList.remove('hidden');
+          topbar.style.width = '0%';
+          requestAnimationFrame(() => {
+            topbar.style.transition = 'width 8s cubic-bezier(0.1,0.05,0,1), opacity 0.3s ease';
+            topbar.style.width = '85%';
+          });
+        }
+
+        function barDone() {
+          topbar.style.transition = 'width 0.15s ease, opacity 0.4s ease 0.15s';
+          topbar.style.width = '100%';
+          barTimer = setTimeout(() => topbar.classList.add('hidden'), 550);
+        }
+
+        function barError() {
+          topbar.style.width = '100%';
+          topbar.style.background = '#c44';
+          topbar.style.boxShadow = '0 0 8px #c44';
+          barTimer = setTimeout(() => {
+            topbar.classList.add('hidden');
+            topbar.style.background = '#f00';
+            topbar.style.boxShadow = '0 0 8px #f00';
+          }, 600);
+        }
+
+        function renderFrame(data) {
+          return new Promise(resolve => {
+            img.onload = () => { barDone(); resolve(); };
+            img.onerror = () => { barDone(); resolve(); };
+            img.src = 'data:image/jpeg;base64,' + data.frame_b64;
+          });
+        }
+
+        async function loop() {
+          while (true) {
+            try {
+              barStart();
+              const res = await fetch('/last_frame');
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json();
+              if (!data.ok) throw new Error(data.error || 'no frame');
+
+              await renderFrame(data);
+              ocrEl.textContent = data.ocr_text || '—';
+              const isErr = data.ocr_text && !/^\d/.test(data.ocr_text);
+              ocrEl.classList.toggle('is-error', isErr);
+              lastTs = Date.now();
+
+              if (!isErr) consecutiveResets = 0;
+
+              if (!resetInProgress && isErr) {
+                recordChainError();
+              }
+              await new Promise(r => setTimeout(r, 1000));
+            } catch (e) {
+              barError();
+              await new Promise(r => setTimeout(r, 500));
+            }
+          }
+        }
+
+        loop();
+
+        document.getElementById('reset-btn').addEventListener('click', triggerReset);
+
+        const autoResetToggle = document.getElementById('auto-reset-toggle');
+        autoResetToggle.addEventListener('click', () => {
+          autoResetDisabled = !autoResetDisabled;
+          autoResetToggle.classList.toggle('is-on', autoResetDisabled);
+          autoResetToggle.textContent = autoResetDisabled ? 'AUTO-RESET DISABLED' : 'DISABLE AUTO-RESET';
+        });
+
+        const cropFlash = document.getElementById('crop-flash');
+        let flashTimer = null;
+
+        function showCropFlash(crop) {
+          cropFlash.textContent = crop.map(v => v.toFixed(3)).join(', ');
+          cropFlash.classList.add('show');
+          clearTimeout(flashTimer);
+          flashTimer = setTimeout(() => cropFlash.classList.remove('show'), 1500);
+        }
+
+        document.querySelectorAll('.arrow-btn').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.stopPropagation();
+            const edge = btn.dataset.edge;
+            const dir = parseInt(btn.dataset.dir, 10);
+            try {
+              const res = await fetch('/api/update-crop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ edge, dir }),
+              });
+              const data = await res.json();
+              if (data.ok) showCropFlash(data.crop);
+            } catch (err) {
+              console.error('[crop] update failed', err);
+            }
+          });
+        });
+      } catch (error) {
+        reportError({
+          type: 'top-level-catch',
+          message: error && error.message ? error.message : String(error),
+          stack: error && error.stack ? error.stack : null,
+        });
+        throw error;
+      }
+    })();
   </script>
 </body>
 </html>

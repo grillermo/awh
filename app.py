@@ -250,6 +250,13 @@ def live():
     return render_template("live.html")
 
 
+@app.post("/report-error")
+def report_error():
+    body = request.get_data(as_text=True)
+    print(f"[report-error] {body}")
+    return jsonify({"ok": True})
+
+
 @app.errorhandler(Exception)
 def handle_exception(exc):
     traceback.print_exc()
