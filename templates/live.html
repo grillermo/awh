@@ -91,34 +91,21 @@
       text-align: center;
     }
     #ocr-text.is-error { color: #f66; }
-    #reset-history {
-      display: flex;
-      flex-direction: column-reverse;
-      gap: 4px;
+    #reset-count {
       width: 100%;
-      max-height: 120px;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-    .reset-marker {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      flex-shrink: 0;
-    }
-    .reset-marker::before {
-      content: '';
-      display: block;
-      height: 2px;
-      flex: 1;
-      background: #c44;
-    }
-    .reset-marker-time {
-      font-size: 11px;
+      text-align: center;
+      font-size: 64px;
+      font-weight: bold;
+      line-height: 1;
       color: #c44;
+    }
+    #reset-count-label {
+      width: 100%;
+      text-align: center;
+      font-size: 11px;
       letter-spacing: 1px;
-      white-space: nowrap;
+      color: #c44;
+      opacity: 0.7;
     }
     #error-bar {
       position: fixed;
@@ -208,7 +195,8 @@
       <div id="ocr-text">—</div>
       <button id="reset-btn">RESET</button>
       <button id="auto-reset-toggle">DISABLE AUTO-RESET</button>
-      <div id="reset-history"></div>
+      <div id="reset-count">0</div>
+      <div id="reset-count-label">RESETS</div>
     </div>
   </main>
   <div id="error-bar"><div id="error-fill"></div></div>
@@ -266,7 +254,8 @@
         const topbar = document.getElementById('topbar');
         const ocrEl = document.getElementById('ocr-text');
         const errorFill = document.getElementById('error-fill');
-        const resetHistory = document.getElementById('reset-history');
+        const resetCountEl = document.getElementById('reset-count');
+        let resetCount = 0;
         let lastTs = null;
         let barTimer = null;
 
@@ -281,15 +270,8 @@
         }
 
         function addResetMarker() {
-          const now = new Date();
-          const hhmm = now.toTimeString().slice(0, 5);
-          const marker = document.createElement('div');
-          marker.className = 'reset-marker';
-          const label = document.createElement('span');
-          label.className = 'reset-marker-time';
-          label.textContent = hhmm;
-          marker.appendChild(label);
-          resetHistory.prepend(marker);
+          resetCount++;
+          resetCountEl.textContent = resetCount;
         }
 
         function recordChainError() {
