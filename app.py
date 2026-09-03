@@ -132,6 +132,7 @@ def index():
 
 @app.post("/api/save-crop")
 def api_save_crop():
+    global _live_crop
     data = request.get_json(force=True, silent=True) or {}
     crop = data.get("crop")
     if not isinstance(crop, list) or len(crop) != 4:
@@ -141,6 +142,9 @@ def api_save_crop():
     except (TypeError, ValueError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     save_display_crop(coords)
+    with _crop_lock:
+        _live_crop = list(coords)
+    _state.clear()
     return jsonify({"ok": True, "crop": list(coords)})
 
 
