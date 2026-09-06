@@ -5,5 +5,6 @@ struct KioskView: View {
         KioskWebView(url: HomeURL.resolve())
             .ignoresSafeArea()
             .background(.black)
+            .statusBarHidden(true)
     }
 }

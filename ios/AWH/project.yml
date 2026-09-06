@@ -9,7 +9,12 @@ targets:
     platform: iOS
     deploymentTarget: "18.0"
     sources:
-      - Sources
+      - path: Sources
+        excludes:
+          - "Settings.bundle"
+      # Copied verbatim rather than compiled, so Settings.app can read it.
+      - path: Sources/Settings.bundle
+        type: folder
     info:
       path: Sources/Info.plist
       properties:
