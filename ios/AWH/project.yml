@@ -18,6 +18,7 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
+        CFBundleDisplayName: AWH
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchStoryboardName: LaunchScreen
