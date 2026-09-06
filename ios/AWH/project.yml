@@ -1,0 +1,67 @@
+name: AWH
+options:
+  bundleIdPrefix: com.awh
+  deploymentTarget:
+    iOS: "18.0"
+targets:
+  AWH:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchStoryboardName: LaunchScreen
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        NSAppleMusicUsageDescription: AWH controls the system music player when the live page asks it to.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        "UISupportedInterfaceOrientations~iphone":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        DEVELOPMENT_TEAM: Q3WS4MWCW3
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: com.awh.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "6.0"
+  AWHTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Tests
+    dependencies:
+      - target: AWH
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.awh.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+schemes:
+  AWH:
+    build:
+      targets:
+        AWH: all
+    run:
+      config: Debug
+    test:
+      targets:
+        - AWHTests
+    archive:
+      config: Release
