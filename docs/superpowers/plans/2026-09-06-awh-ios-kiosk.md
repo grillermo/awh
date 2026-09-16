@@ -791,7 +791,7 @@ struct AWHApp: App {
 cd /Users/grillermo/c/awh/ios/AWH
 xcodegen generate
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -30
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -30
 ```
 
 Expected: FAIL — `cannot find 'HomeURL' in scope`.
@@ -838,7 +838,7 @@ enum HomeURL {
 ```bash
 cd /Users/grillermo/c/awh/ios/AWH
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`, 8 tests passing.
@@ -937,7 +937,7 @@ struct SoundBridgeMessageTests {
 cd /Users/grillermo/c/awh/ios/AWH
 xcodegen generate
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -30
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -30
 ```
 
 Expected: FAIL — `cannot find 'ReloadPolicy' in scope` and `cannot find 'SoundBridgeMessage' in scope`.
@@ -991,7 +991,7 @@ enum SoundBridgeMessage {
 ```bash
 cd /Users/grillermo/c/awh/ios/AWH
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`, 16 tests passing.
@@ -1242,7 +1242,7 @@ struct AWHApp: App {
 cd /Users/grillermo/c/awh/ios/AWH
 xcodegen generate
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`, 16 tests still passing. If it fails with a concurrency diagnostic about isolated conformances, the coordinator has been marked `@MainActor` — remove that annotation.
@@ -1419,7 +1419,7 @@ struct KioskView: View {
 cd /Users/grillermo/c/awh/ios/AWH
 xcodegen generate
 xcodebuild test -project AWH.xcodeproj -scheme AWH \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`, 16 tests passing.
@@ -1429,7 +1429,7 @@ Expected: `TEST SUCCEEDED`, 16 tests passing.
 ```bash
 cd /Users/grillermo/c/awh/ios/AWH
 BUILT=$(xcodebuild -project AWH.xcodeproj -scheme AWH -configuration Debug \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 16e' \
   -showBuildSettings 2>/dev/null \
   | awk -F' = ' '/ BUILT_PRODUCTS_DIR = /{print $2; exit}')
 ls "$BUILT/AWH.app/Settings.bundle/Root.plist"
@@ -2327,7 +2327,7 @@ newest release."
 cd /Users/grillermo/c/patatatube/ios/PatataTube
 xcodegen generate
 xcodebuild test -project PatataTube.xcodeproj -scheme PatataTube \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`. If it already fails, stop — that is a pre-existing problem and this task must not be blamed for it.
@@ -2391,7 +2391,7 @@ In `ios/README.md`, delete the "### Web bridge address bar" section — the head
 cd /Users/grillermo/c/patatatube/ios/PatataTube
 xcodegen generate
 xcodebuild test -project PatataTube.xcodeproj -scheme PatataTube \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | tail -20
+  -destination 'platform=iOS Simulator,name=iPhone 16e' 2>&1 | tail -20
 ```
 
 Expected: `TEST SUCCEEDED`, the same test count as Step 1. No test file references the web bridge, so the count should not change.

@@ -192,7 +192,7 @@ the suite needs no UI automation:
   "playSound")` and rejects a wrong name, a wrong body, and a non-`String` body.
 
 Run with `xcodebuild test -project AWH.xcodeproj -scheme AWH -destination
-'platform=iOS Simulator,name=iPhone 17 Pro'`.
+'platform=iOS Simulator,name=iPhone 16e'`.
 
 Manual checks, on device, recorded in `ios/install.md`:
 

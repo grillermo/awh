@@ -37,3 +37,12 @@ When I need a new library, provide the instructions in this specific order:
 > ```
 
 ---
+
+## Simulators
+
+- **Only two simulators exist on this machine** — `iPhone 16e`
+  (`08D1BCF0-862E-44C7-9A2B-3EF107A4FB69`) and `iPad mini (A17 Pro)`
+  (`C0D83EFE-4F6C-4324-8743-6F77259BE12C`), both on iOS 26.3. Every other
+  device was deleted to reclaim disk. Do not create new ones: pick one of these
+  two, by udid. Older docs and `.superpowers/` reports name `iPhone 17 Pro`;
+  that device is gone and those commands will fail as written.
