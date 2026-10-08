@@ -1,5 +1,6 @@
 *.pyc
 .pyc
+.DS_Store
 ocr_samples/
 ocr-examples.html
 
