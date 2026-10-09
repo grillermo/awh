@@ -145,6 +145,51 @@ def fix_perspective(frames):
     return [fix_perspective_frame(frame) for frame in frames]
 
 
+# Auto-exposure limits. Gamma outside this range means the frame is so dark (or
+# so blown out) that pushing it to mid-grey would mostly amplify sensor noise —
+# and noise that OCRs as text triggers a false reset, so we cap instead.
+ENHANCE_GAMMA_RANGE = (0.35, 3.0)
+ENHANCE_TARGET_MEAN = 0.5
+# A genuinely dark but readable display still spreads p1..p99 over 50+ levels;
+# below ~24 there is no signal to recover and the stretch would just gain up noise.
+ENHANCE_MIN_SPREAD = 24
+
+
+def enhance_frame(frame):
+    """
+    Auto contrast + luminosity for OCR: percentile stretch, then gamma to pull
+    mean luminance toward mid-grey.
+
+    Stats come from the luma channel and the resulting curve is applied as a
+    single LUT to every channel, so the transform is global and monotone: it
+    cannot invent structure that was not already in the frame.
+    """
+    gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    lo, hi = np.percentile(gray, (1, 99))
+
+    ramp = np.arange(256, dtype=np.float32)
+    if hi - lo >= ENHANCE_MIN_SPREAD:
+        ramp = np.clip((ramp - lo) * (255.0 / (hi - lo)), 0, 255)
+    else:
+        print(f"[enhance] Flat frame (p1={lo:.0f}, p99={hi:.0f}) → skipping stretch")
+
+    # Mean of the stretched image, without materialising it
+    hist = np.bincount(gray.reshape(-1), minlength=256).astype(np.float32)
+    mean = float(np.dot(ramp, hist) / hist.sum()) / 255.0
+    mean = min(max(mean, 0.02), 0.98)  # keep log() finite
+    gamma = np.log(ENHANCE_TARGET_MEAN) / np.log(mean)
+    gamma = min(max(gamma, ENHANCE_GAMMA_RANGE[0]), ENHANCE_GAMMA_RANGE[1])
+
+    lut = np.rint(np.clip(255.0 * (ramp / 255.0) ** gamma, 0, 255)).astype(np.uint8)
+    print(f"[enhance] p1={lo:.0f} p99={hi:.0f} mean={mean:.2f} gamma={gamma:.2f}")
+    return cv2.LUT(frame, lut)
+
+
+def enhance(frames):
+    print(f"[enhance] Auto contrast + luminosity on {len(frames)} frames")
+    return [enhance_frame(frame) for frame in frames]
+
+
 def _frame_to_jpg_bytes(frame, quality=80):
     ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not ok:
@@ -361,7 +406,7 @@ def monitor_and_reset(display_crop=DISPLAY_CROP):
         raise RuntimeError("Failed to capture frames from RTSP stream")
 
     cropped = crop_to_screen(frames, coords=display_crop)
-    fixed = fix_perspective(cropped)
+    fixed = enhance(fix_perspective(cropped))
 
     is_error, ocr_results = error_showing_on_stream(fixed)
 
@@ -372,7 +417,7 @@ def monitor_and_reset(display_crop=DISPLAY_CROP):
         if not frames:
             raise RuntimeError("Failed to capture frames from RTSP stream")
         cropped = crop_to_screen(frames, coords=display_crop)
-        fixed = fix_perspective(cropped)
+        fixed = enhance(fix_perspective(cropped))
         is_error, ocr_results = error_showing_on_stream(fixed)
         print(f"[ocr] Re-check result: {'error' if is_error else 'no error'}")
 

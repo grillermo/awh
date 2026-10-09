@@ -12,7 +12,7 @@ setproctitle("awh")
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, fix_perspective_frame, get_ocr_reader, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, reset_tapo100, save_display_crop, save_display_view
+from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, get_recent_errors, load_display_crop, load_display_view, monitor_and_reset, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -67,8 +67,8 @@ def _capture_loop():
             frame = capture_frame()
             if frame is not None:
                 cropped = crop_frame(frame, coords=crop)
-                fixed = fix_perspective_frame(cropped)
-                detections = reader.readtext(cropped, detail=0)
+                fixed = enhance_frame(fix_perspective_frame(cropped))
+                detections = reader.readtext(fixed, detail=0)
                 ocr_text = " ".join(detections).strip()
                 ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 print("capturing, cropping and fixing frame")
@@ -168,7 +168,7 @@ def display_frame():
         display_crop = parse_display_crop_arg(request.args.get("display_crop"))
         frame = load_fresh_frame()
         cropped = crop_frame(frame, coords=display_crop)
-        fixed = fix_perspective_frame(cropped)
+        fixed = enhance_frame(fix_perspective_frame(cropped))
         return jsonify({"ok": True, "fixed_frame_b64": encode_jpg(fixed)})
     except Exception as exc:
         traceback.print_exc()
