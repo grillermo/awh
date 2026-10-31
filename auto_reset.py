@@ -5,18 +5,13 @@ Captures webcam stream, detects error on display, runs macOS shortcut.
 """
 
 import asyncio
-import argparse
 import base64
 import cv2
 import functools
 import numpy as np
 import os
-import re
 import sqlite3
 import sys
-import threading
-import time
-import urllib.request
 from datetime import datetime
 
 RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream1"
@@ -40,36 +35,6 @@ ERROR_DB_PATH = "errors.sqlite3"
 MAX_SAVED_ERRORS = 5
 
 
-def parse_display_crop(crop_arg):
-    parts = [part.strip() for part in crop_arg.split(",")]
-    if len(parts) != 4:
-        raise ValueError(
-            f"DISPLAY_CROP must contain 4 comma-separated values, got {len(parts)}: {crop_arg!r}"
-        )
-
-    try:
-        return tuple(float(part) for part in parts)
-    except ValueError as exc:
-        raise ValueError(f"DISPLAY_CROP values must be floats: {crop_arg!r}") from exc
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Auto water heater reset.")
-    parser.add_argument(
-        "--display-crop",
-        default=",".join(str(value) for value in DISPLAY_CROP),
-        help="Comma-separated crop fractions: left,top,right,bottom",
-    )
-    args = parser.parse_args()
-
-    try:
-        args.display_crop = parse_display_crop(args.display_crop)
-    except ValueError as exc:
-        parser.error(str(exc))
-
-    return args
-
-
 def capture_frame(rtsp_url=RTSP_URL):
     cap = cv2.VideoCapture(rtsp_url)
     if not cap.isOpened():
@@ -86,33 +51,6 @@ def capture_frame(rtsp_url=RTSP_URL):
     return frame
 
 
-def capture_webcam(seconds=2):
-    print(f"[capture] Opening RTSP stream for {seconds}s: {RTSP_URL}")
-    cap = cv2.VideoCapture(RTSP_URL)
-    if not cap.isOpened():
-        print("[capture] ERROR: Failed to open stream", file=sys.stderr)
-        return []
-
-    fps = cap.get(cv2.CAP_PROP_FPS) or 10
-    target = int(fps * seconds)
-    frames = []
-
-    start = time.time()
-    frame_count = 0
-    while time.time() - start < seconds:
-        ret, frame = cap.read()
-        if not ret:
-            print("[capture] WARNING: Failed to read frame, retrying…")
-            continue
-        frame_count += 1
-        if frame_count % 5 == 0:
-            frames.append(frame)
-
-    cap.release()
-    print(f"[capture] Captured {len(frames)} frames ({fps:.1f} fps reported)")
-    return frames
-
-
 def crop_frame(frame, coords=DISPLAY_CROP):
     left_f, top_f, right_f, bottom_f = coords
     h, w = frame.shape[:2]
@@ -123,15 +61,6 @@ def crop_frame(frame, coords=DISPLAY_CROP):
     return cropped
 
 
-def crop_to_screen(frames, coords=DISPLAY_CROP):
-    print(f"[crop] Cropping {len(frames)} frames with relative coords {coords}")
-    cropped = []
-    for frame in frames:
-        cropped.append(crop_frame(frame, coords=coords))
-    print(f"[crop] Crop region (first frame): {cropped[0].shape if cropped else 'empty'}")
-    return cropped
-
-
 def fix_perspective_frame(frame):
     h, w = frame.shape[:2]
     src = DISPLAY_QUAD_REL * np.array([w, h], dtype=np.float32)
@@ -139,10 +68,6 @@ def fix_perspective_frame(frame):
     dst = np.array([[0, 0], [w_out - 1, 0], [w_out - 1, h_out - 1], [0, h_out - 1]], dtype=np.float32)
     M = cv2.getPerspectiveTransform(src, dst)
     return cv2.warpPerspective(frame, M, (w_out, h_out))
-
-
-def fix_perspective(frames):
-    return [fix_perspective_frame(frame) for frame in frames]
 
 
 # Auto-exposure limits. Gamma outside this range means the frame is so dark (or
@@ -183,11 +108,6 @@ def enhance_frame(frame):
     lut = np.rint(np.clip(255.0 * (ramp / 255.0) ** gamma, 0, 255)).astype(np.uint8)
     print(f"[enhance] p1={lo:.0f} p99={hi:.0f} mean={mean:.2f} gamma={gamma:.2f}")
     return cv2.LUT(frame, lut)
-
-
-def enhance(frames):
-    print(f"[enhance] Auto contrast + luminosity on {len(frames)} frames")
-    return [enhance_frame(frame) for frame in frames]
 
 
 def _frame_to_jpg_bytes(frame, quality=80):
@@ -336,49 +256,6 @@ def get_ocr_reader():
     return easyocr.Reader(["en"], gpu=False, verbose=False)
 
 
-def classify_ocr_text(text):
-    if not text:
-        return {"ocr_text": "", "error_text": "", "is_error": False}
-
-    is_error = not bool(re.match(r'^\d', text))
-    return {
-        "ocr_text": text,
-        "error_text": text if is_error else "",
-        "is_error": is_error,
-    }
-
-
-def error_showing_on_stream(frames):
-    """
-    OCR all frames, classify each, then vote: majority error → is_error True.
-    Returns (is_error: bool, ocr_results: list[dict])
-    """
-    reader = get_ocr_reader()
-
-    print(f"[ocr] Scanning all {len(frames)} frames for voting")
-    ocr_results = []
-    for idx, frame in enumerate(frames):
-        detections = reader.readtext(frame, detail=0)
-        text = " ".join(detections).strip()
-        print(f"[ocr] Frame {idx}: detected text = {repr(text)}")
-        if not text:
-            continue
-        is_error = not bool(re.match(r'^\d', text))
-        label = "ERROR STATE" if is_error else "no error"
-        print(f"[ocr] Frame {idx}: {repr(text)} → {label}")
-        ocr_results.append({"frame_idx": idx, "text": text, "error": is_error})
-
-    if not ocr_results:
-        print("[ocr] All frames gave empty OCR → treating as no error")
-        return False, []
-
-    error_votes = sum(1 for r in ocr_results if r["error"])
-    no_error_votes = len(ocr_results) - error_votes
-    is_error = error_votes > no_error_votes
-    print(f"[ocr] Vote: {error_votes} error / {no_error_votes} no-error → {'ERROR STATE' if is_error else 'no error'}")
-    return is_error, ocr_results
-
-
 def reset_tapo100():
     from tapo import ApiClient
 
@@ -398,59 +275,3 @@ def reset_tapo100():
         asyncio.run(_do())
     except Exception as e:
         print(f"[tapo] ERROR: {e}", file=sys.stderr)
-
-
-def monitor_and_reset(display_crop=DISPLAY_CROP):
-    frames = capture_webcam(seconds=3)
-    if not frames:
-        raise RuntimeError("Failed to capture frames from RTSP stream")
-
-    cropped = crop_to_screen(frames, coords=display_crop)
-    fixed = enhance(fix_perspective(cropped))
-
-    is_error, ocr_results = error_showing_on_stream(fixed)
-
-    if is_error:
-        print("[ocr] Non-digit detected → re-checking in 3 seconds")
-        time.sleep(3)
-        frames = capture_webcam(seconds=3)
-        if not frames:
-            raise RuntimeError("Failed to capture frames from RTSP stream")
-        cropped = crop_to_screen(frames, coords=display_crop)
-        fixed = enhance(fix_perspective(cropped))
-        is_error, ocr_results = error_showing_on_stream(fixed)
-        print(f"[ocr] Re-check result: {'error' if is_error else 'no error'}")
-
-    if ocr_results:
-        representative = next((r for r in ocr_results if r["error"] == is_error), ocr_results[0])
-        fidx = representative["frame_idx"]
-        ocr_text = representative["text"]
-    else:
-        fidx = len(frames) - 1
-        ocr_text = ""
-
-    result = {
-        "raw_frame": frames[fidx],
-        "cropped_frame": cropped[fidx],
-        "fixed_frame": fixed[fidx],
-        **classify_ocr_text(ocr_text),
-    }
-
-    if is_error:
-        print("[main] Error detected → resetting P100")
-        save_error(frames[fidx], cropped[fidx], fixed[fidx], ocr_results[0]["text"])
-        reset_tapo100()
-    else:
-        print("[main] No error → nothing to do")
-
-    return result
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    end_time = time.time() + 1.5 * 3600
-    while time.time() < end_time:
-        monitor_and_reset(display_crop=args.display_crop)
-        remaining = end_time - time.time()
-        if remaining > 0:
-            time.sleep(min(5, remaining))

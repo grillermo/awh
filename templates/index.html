@@ -584,7 +584,7 @@
   copyBtn.addEventListener("click", copyValue);
   saveBtn.addEventListener("click", saveCrop);
   monitorBtn.addEventListener("click", () => {
-    window.location.href = `/monitor?display_crop=${encodeURIComponent(cropStr())}`;
+    window.location.href = "/live";
   });
 
   canvas.addEventListener("pointerup", releasePointer);
