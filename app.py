@@ -12,7 +12,7 @@ setproctitle("awh")
 import cv2
 from flask import Flask, jsonify, render_template, request
 
-from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, get_recent_errors, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
+from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -173,11 +173,6 @@ def display_frame():
     except Exception as exc:
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(exc)}), 500
-
-
-@app.get("/errors-history")
-def errors_history():
-    return render_template("errors_history.html", errors=get_recent_errors())
 
 
 @app.get("/last_frame")

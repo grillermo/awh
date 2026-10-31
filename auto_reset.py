@@ -5,14 +5,12 @@ Captures webcam stream, detects error on display, runs macOS shortcut.
 """
 
 import asyncio
-import base64
 import cv2
 import functools
 import numpy as np
 import os
 import sqlite3
 import sys
-from datetime import datetime
 
 RTSP_URL = "rtsp://grillermo:123456789@192.168.1.21/stream1"
 TAPO_IP = "192.168.1.86"
@@ -32,7 +30,6 @@ DISPLAY_QUAD_REL = np.array([
     [0.2069, 0.8421],
 ], dtype=np.float32)
 ERROR_DB_PATH = "errors.sqlite3"
-MAX_SAVED_ERRORS = 5
 
 
 def capture_frame(rtsp_url=RTSP_URL):
@@ -110,13 +107,6 @@ def enhance_frame(frame):
     return cv2.LUT(frame, lut)
 
 
-def _frame_to_jpg_bytes(frame, quality=80):
-    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
-    if not ok:
-        raise ValueError("Failed to encode frame as JPEG")
-    return buf.tobytes()
-
-
 def get_error_db_connection(path=ERROR_DB_PATH):
     db_path = os.fspath(path)
     db_dir = os.path.dirname(db_path)
@@ -124,18 +114,6 @@ def get_error_db_connection(path=ERROR_DB_PATH):
         os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS errors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT NOT NULL,
-            ocr_text TEXT NOT NULL,
-            raw_image BLOB NOT NULL,
-            cropped_image BLOB NOT NULL,
-            fixed_image BLOB NOT NULL
-        )
-        """
-    )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS settings (
@@ -191,62 +169,6 @@ def load_display_view(path=ERROR_DB_PATH):
     except Exception:
         pass
     return None
-
-
-def save_error(raw_frame, cropped_frame, fixed_frame, ocr_text, path=ERROR_DB_PATH):
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    raw_jpg = _frame_to_jpg_bytes(raw_frame)
-    crop_jpg = _frame_to_jpg_bytes(cropped_frame)
-    fixed_jpg = _frame_to_jpg_bytes(fixed_frame)
-
-    with get_error_db_connection(path) as conn:
-        conn.execute(
-            """
-            INSERT INTO errors (created_at, ocr_text, raw_image, cropped_image, fixed_image)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (ts, ocr_text, raw_jpg, crop_jpg, fixed_jpg),
-        )
-        conn.execute(
-            """
-            DELETE FROM errors
-            WHERE id NOT IN (
-                SELECT id
-                FROM errors
-                ORDER BY id DESC
-                LIMIT ?
-            )
-            """,
-            (MAX_SAVED_ERRORS,),
-        )
-    print(f"[db] Error saved → {path}")
-
-
-def get_recent_errors(limit=MAX_SAVED_ERRORS, path=ERROR_DB_PATH):
-    with get_error_db_connection(path) as conn:
-        rows = conn.execute(
-            """
-            SELECT id, created_at, ocr_text, raw_image, cropped_image, fixed_image
-            FROM errors
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-
-    results = []
-    for row in rows:
-        results.append(
-            {
-                "id": row["id"],
-                "created_at": row["created_at"],
-                "ocr_text": row["ocr_text"],
-                "raw_image_b64": base64.b64encode(row["raw_image"]).decode(),
-                "cropped_image_b64": base64.b64encode(row["cropped_image"]).decode(),
-                "fixed_image_b64": base64.b64encode(row["fixed_image"]).decode(),
-            }
-        )
-    return results
 
 
 @functools.lru_cache(maxsize=1)
