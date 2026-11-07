@@ -12,6 +12,7 @@ setproctitle("awh")
 import cv2
 from flask import Flask, jsonify, render_template, request
 
+from ocr_samples import SampleCollector
 from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
@@ -57,6 +58,7 @@ _last_frame_requested_at = 0.0
 
 def _capture_loop():
     reader = get_ocr_reader()
+    samples = SampleCollector()
     while True:
         if time.time() - _last_frame_requested_at > 10:
             time.sleep(1)
@@ -70,6 +72,10 @@ def _capture_loop():
                 fixed = enhance_frame(fix_perspective_frame(cropped))
                 detections = reader.readtext(fixed, detail=0)
                 ocr_text = " ".join(detections).strip()
+                try:
+                    samples.maybe_save(ocr_text, cropped, fixed)
+                except Exception as exc:
+                    print(f"[samples] save failed: {exc}")
                 ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 print("capturing, cropping and fixing frame")
                 b64 = base64.b64encode(buf).decode()
