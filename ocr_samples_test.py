@@ -31,6 +31,8 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(classify("  "), "empty")
         self.assertEqual(classify("45"), "number")
         self.assertEqual(classify("4 5"), "number")
+        self.assertEqual(classify("5"), "digit")
+        self.assertEqual(classify(" 6 "), "digit")
         self.assertEqual(classify("E1"), "text")
         self.assertEqual(classify("4S"), "text")
         self.assertEqual(classify("hello"), "text")
@@ -48,6 +50,14 @@ class CollectorTest(unittest.TestCase):
 
     def test_never_saves_numbers(self):
         self.assertIsNone(self.collector().maybe_save("45", *frames()))
+
+    def test_saves_single_digits_in_their_own_folder(self):
+        c = self.collector()
+        rec = c.maybe_save("5", *frames())
+        self.assertEqual(rec["kind"], "digit")
+        self.assertIn(os.path.join(self.dir, "digit"), rec["ocr"])
+        self.assertIsNotNone(c.maybe_save("6", *frames()))
+        self.assertIsNone(c.maybe_save("5", *frames()))  # too soon
 
     def test_saves_each_distinct_text_and_both_images(self):
         c = self.collector()

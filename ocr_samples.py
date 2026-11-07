@@ -7,7 +7,10 @@ every distinct text gets saved, up to a few frames each, spaced apart so the
 copies differ. Misses where OCR read nothing are common and mostly alike, so
 only a small random share of them is kept, with a hard cap.
 
-Samples land in ocr_samples/{text,empty}/ as the raw crop and the enhanced
+A lone single digit ("5", "6") is a number but almost always a misread of the
+two-digit display, so those are kept like texts, for comparing OCR models.
+
+Samples land in ocr_samples/{text,digit,empty}/ as the raw crop and the enhanced
 frame OCR actually saw, plus one JSON line per sample in ocr_samples/index.jsonl.
 """
 
@@ -34,12 +37,12 @@ _NUMBER_RE = re.compile(r"\d+")
 
 
 def classify(ocr_text):
-    """'number', 'empty' or 'text'."""
+    """'number', 'digit' (a lone single digit), 'empty' or 'text'."""
     compact = re.sub(r"\s+", "", ocr_text or "")
     if not compact:
         return "empty"
     if _NUMBER_RE.fullmatch(compact):
-        return "number"
+        return "digit" if len(compact) == 1 else "number"
     return "text"
 
 
@@ -70,7 +73,7 @@ class SampleCollector:
                     rec = json.loads(line)
                 except ValueError:
                     continue
-                if rec.get("kind") == "text":
+                if rec.get("kind") in ("text", "digit"):
                     count, last = self._text_seen.get(rec["ocr_text"], (0, 0.0))
                     self._text_seen[rec["ocr_text"]] = (count + 1, max(last, rec["at"]))
                 elif rec.get("kind") == "empty":
@@ -82,7 +85,7 @@ class SampleCollector:
         kind = classify(ocr_text)
         now = self.clock()
         with self._lock:
-            if kind == "text":
+            if kind in ("text", "digit"):
                 key = ocr_text.strip()
                 count, last = self._text_seen.get(key, (0, 0.0))
                 if count >= TEXT_MAX_PER_TEXT or now - last < TEXT_MIN_INTERVAL_S:
@@ -105,7 +108,7 @@ class SampleCollector:
             return None
         now = self.clock()
         stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
-        base = f"{stamp}_{_slug(ocr_text) if kind == 'text' else 'empty'}"
+        base = f"{stamp}_{'empty' if kind == 'empty' else _slug(ocr_text)}"
         folder = os.path.join(self.root, kind)
         os.makedirs(folder, exist_ok=True)
         raw_path = os.path.join(folder, f"{base}_raw.png")
