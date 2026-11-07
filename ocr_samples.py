@@ -33,6 +33,10 @@ EMPTY_PROBABILITY = 0.02
 EMPTY_MIN_INTERVAL_S = 600
 EMPTY_MAX_TOTAL = 40
 
+# Disk budget for the whole ocr_samples/ folder. Once it is used up, no more
+# samples are saved; delete some to make room.
+MAX_BYTES = 50 * 1024 * 1024
+
 _NUMBER_RE = re.compile(r"\d+")
 
 
@@ -46,14 +50,28 @@ def classify(ocr_text):
     return "text"
 
 
+def _dir_size(root):
+    total = 0
+    for dirpath, _dirs, files in os.walk(root):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, name))
+            except OSError:
+                pass
+    return total
+
+
 def _slug(text, limit=40):
     slug = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
     return slug[:limit] or "x"
 
 
 class SampleCollector:
-    def __init__(self, root=SAMPLES_DIR, rng=None, clock=time.time):
+    def __init__(self, root=SAMPLES_DIR, rng=None, clock=time.time, max_bytes=MAX_BYTES):
         self.root = root
+        self.max_bytes = max_bytes
+        self._used_bytes = _dir_size(root)
+        self._budget_warned = False
         self.rng = rng or random.Random()
         self.clock = clock
         self._lock = threading.Lock()
@@ -83,8 +101,15 @@ class SampleCollector:
     def should_save(self, ocr_text):
         """Decide, and reserve the slot if yes. Returns the kind to save as, or None."""
         kind = classify(ocr_text)
+        if kind == "number":
+            return None
         now = self.clock()
         with self._lock:
+            if self._used_bytes >= self.max_bytes:
+                if not self._budget_warned:
+                    print(f"[samples] disk budget of {self.max_bytes // (1024 * 1024)} MB used up; not saving more samples")
+                    self._budget_warned = True
+                return None
             if kind in ("text", "digit"):
                 key = ocr_text.strip()
                 count, last = self._text_seen.get(key, (0, 0.0))
@@ -115,8 +140,11 @@ class SampleCollector:
         proc_path = os.path.join(folder, f"{base}_ocr.png")
         cv2.imwrite(raw_path, raw)
         cv2.imwrite(proc_path, processed)
+        written = os.path.getsize(raw_path) + os.path.getsize(proc_path)
         rec = {"at": now, "kind": kind, "ocr_text": ocr_text.strip(), "raw": raw_path, "ocr": proc_path}
+        line = json.dumps(rec) + "\n"
         with self._lock, open(os.path.join(self.root, "index.jsonl"), "a") as fh:
-            fh.write(json.dumps(rec) + "\n")
+            fh.write(line)
+            self._used_bytes += written + len(line.encode())
         print(f"[samples] saved {kind} sample {ocr_text.strip()!r} → {proc_path}")
         return rec

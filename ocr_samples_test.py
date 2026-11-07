@@ -43,10 +43,10 @@ class CollectorTest(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.clock = Clock()
 
-    def collector(self, rng_value=0.0):
+    def collector(self, rng_value=0.0, max_bytes=ocr_samples.MAX_BYTES):
         rng = random.Random()
         rng.random = lambda: rng_value
-        return SampleCollector(root=self.dir, rng=rng, clock=self.clock)
+        return SampleCollector(root=self.dir, rng=rng, clock=self.clock, max_bytes=max_bytes)
 
     def test_never_saves_numbers(self):
         self.assertIsNone(self.collector().maybe_save("45", *frames()))
@@ -83,6 +83,14 @@ class CollectorTest(unittest.TestCase):
         self.assertIsNone(c.maybe_save("", *frames()))
         self.clock.t += ocr_samples.EMPTY_MIN_INTERVAL_S
         self.assertIsNotNone(c.maybe_save("", *frames()))
+
+    def test_stops_saving_once_the_disk_budget_is_used(self):
+        c = self.collector(max_bytes=1)
+        self.assertIsNotNone(c.maybe_save("E1", *frames()))
+        self.assertIsNone(c.maybe_save("ER", *frames()))
+        # A restart measures what is already on disk.
+        self.assertIsNone(self.collector(max_bytes=1).maybe_save("XY", *frames()))
+        self.assertIsNotNone(self.collector().maybe_save("XY", *frames()))
 
     def test_restart_remembers_saved_texts(self):
         c = self.collector()
