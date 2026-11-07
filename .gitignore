@@ -1,3 +1,4 @@
 *.pyc
 .pyc
 ocr_samples/
+ocr-examples.html
