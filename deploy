@@ -3,36 +3,47 @@
 
 # deploy
 #
-# One-shot release of the AWH iOS app.
+# One-shot release of AWH over Safari OTA install:
 #
 #   1. bump MARKETING_VERSION (+ build number) in ios/AWH/project.yml
-#   2. build an ad-hoc-signed .ipa + its OTA manifest   (ios/ipa_builder.rb)
-#   3. upload the .ipa, icon, manifest and install page to files.chiq.me
-#   4. commit the bump + manifest, tag, and push
+#   2. build an ad-hoc-signed .ipa + its OTA manifest   (scripts/deploy/ipa_builder.rb)
+#   3. publish the .ipa, icon, manifest and install page to AWH_UPLOAD_BASE
+#   4. commit the bump, tag, and push
 #
 # The install page URL never changes, so a Home Screen bookmark on the device
-# always installs the newest release. It is printed at the end and documented
-# in ios/install.md.
+# always installs the newest release. It is printed at the end.
 #
 # Usage:
 #   ./deploy                  # bump patch (1.0.0 -> 1.0.1)
 #   ./deploy patch|minor|major
-#   ./deploy 1.4.2            # set an explicit version
+#   ./deploy 1.1.0            # set an explicit version
 #   ./deploy --yes            # skip the confirmation prompt
+#   ./deploy --devlog         # instrumented build: DevLog -> scripts/devlog/server.py
 #
 # Release notes (shown on the install page):
 #
-#   ./deploy minor --summary "Faster reconnect" \
-#            --note "Retry now ramps 2/5/10s" \
-#            --note "Home URL is editable in Settings"
+#   ./deploy minor --summary "Faster sync" \
+#            --note "Retries back off 2/5/10s"
 #
 # --summary is a one-line headline, --note is repeatable and becomes a bullet.
 # With neither, the notes come from commit subjects since the last release tag.
 #
-# Requires AWH_UPLOAD_TOKEN in the environment (file_to_s3's AUTH_TOKEN).
+# Setup (both files gitignored):
+#   .env                    AWH_UPLOAD_BASE=https://files.chiq.me
+#                           optional: AWH_PUBLISH_DIR, AWH_TEAM_ID, AWH_DEVLOG_URL
+#   ios/AWH/Config/Local.xcconfig
+#                           optional DEVELOPMENT_TEAM and AWH_BUNDLE_ID, overriding
+#                           the committed defaults in ios/AWH/Config/AWH.xcconfig
+#
+# The file_server service behind AWH_UPLOAD_BASE runs on the macmini, so
+# releases are published by writing into the files/ directory it serves rather
+# than over HTTP (see scripts/deploy/uploader.rb). Run this on the macmini.
+#
+# AWH_UNSIGNED=1 builds an unsigned Payload/ zip instead, for when signing is
+# broken and you still need a binary.
 
-require_relative "ios/ipa_builder"
-require_relative "ios/uploader"
+require_relative "scripts/deploy/ipa_builder"
+require_relative "scripts/deploy/uploader"
 require "digest"
 require "fileutils"
 require "shellwords"
@@ -40,26 +51,51 @@ require "time"
 
 B = IpaBuilder
 
-APP_NAME      = IpaBuilder::APP_NAME
-PROJECT_YML   = IpaBuilder::PROJECT_YML
-BUNDLE_ID     = "com.awh.app"
-MANIFEST_REL  = "ios/manifest.plist"
-ICON_REL      = "apple-touch-icon.png"
+APP_NAME    = B::APP_NAME
+SLUG        = B::APP_SLUG
+REPO_ROOT   = B::REPO_ROOT
+# The version lives in project.yml; the generated .xcodeproj is gitignored.
+PROJECT_YML_REL = B::PROJECT_YML_REL
+PROJECT_YML     = B::PROJECT_YML
+REMOTE      = B::GIT_REMOTE
 
-PINNED_MANIFEST = "awh-manifest.plist"
-PINNED_INSTALL  = "awh-install.html"
-PINNED_ICON     = "awh-icon.png"
+# --- .env ----------------------------------------------------------------
+# Minimal dotenv: load KEY=VALUE lines from .env without overriding a
+# variable already exported in the shell.
+def load_dotenv(path)
+  return unless File.exist?(path)
+
+  File.readlines(path).each do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?("#")
+
+    key, value = line.split("=", 2)
+    next unless key && value
+
+    ENV[key] ||= value.strip.gsub(/\A["']|["']\z/, "")
+  end
+end
+
+load_dotenv(File.join(REPO_ROOT, ".env"))
+
+BUNDLE_ID = B.bundle_id
+
+PINNED_MANIFEST = "#{SLUG}-manifest.plist"
+PINNED_INSTALL  = "#{SLUG}-install.html"
+PINNED_ICON     = "#{SLUG}-icon.png"
+ICON_SOURCE     = File.join(REPO_ROOT, B::ICON_SOURCE)
 
 MANIFEST_URL = "#{Uploader.base_url}/files/#{PINNED_MANIFEST}"
 INSTALL_URL  = "#{Uploader.base_url}/files/#{PINNED_INSTALL}"
 ICON_URL     = "#{Uploader.base_url}/files/#{PINNED_ICON}"
 ITMS_URL     = "itms-services://?action=download-manifest&url=#{MANIFEST_URL}"
 
-MIN_OS = File.read(PROJECT_YML)[/^\s*iOS:\s*"?([\d.]+)"?/, 1] || "18.0"
-
-# --- flags -------------------------------------------------------------------
+# --- flags -----------------------------------------------------------------
 
 ASSUME_YES = !ARGV.delete("--yes").nil?
+# --devlog builds an instrumented release whose DevLog records go to
+# scripts/devlog/server.py on this machine (AWH_DEVLOG_URL overrides).
+DEVLOG = !ARGV.delete("--devlog").nil?
 
 # Repeatable "--flag value" / "--flag=value" options, pulled out of ARGV so the
 # version argument stays positional wherever it sits.
@@ -91,28 +127,42 @@ NOTES   = take_option(ARGV, "--note", "--notes", "-n")
 
 # --- preflight ---------------------------------------------------------------
 
-Uploader.token # dies early with instructions if unset
+if DEVLOG && !File.exist?(File.join(REPO_ROOT, "scripts/devlog/server.py"))
+  B.die("--devlog needs DevLog in the app and scripts/devlog/server.py; this app has neither yet")
+end
 
-BRANCH = `git rev-parse --abbrev-ref HEAD`.strip
+Uploader.check_publish_dir! # dies early if the service's files/ dir is missing
+B.ensure_codesign_can_sign! # unlocks the keychain now, not after a long compile
+B.die("icon not found: #{ICON_SOURCE} (set ICON_SOURCE in scripts/deploy/ipa_builder.rb)") unless File.file?(ICON_SOURCE)
+
+BRANCH = `git -C #{REPO_ROOT.shellescape} rev-parse --abbrev-ref HEAD`.strip
 B.die("on branch '#{BRANCH}', not 'main'; releases are cut from main") unless BRANCH == "main"
+
+# errors.sqlite3 is tracked but is the Flask server's live database, which it
+# writes to all the time; it never ships in a release, so it does not count.
+RUNTIME_FILES = ["errors.sqlite3"].freeze
+dirty = `git -C #{REPO_ROOT.shellescape} status --porcelain`
+dirty = dirty.lines.reject { |l| RUNTIME_FILES.include?(l[3..-1].to_s.strip) }.join
+B.die("working tree is dirty -- commit or stash before releasing:\n#{dirty}") unless dirty.strip.empty?
 
 # --- version bump ------------------------------------------------------------
 
 def bump(current, arg)
-  return arg if arg =~ /\A\d+\.\d+\.\d+\z/
+  return arg if arg =~ /\A\d+\.\d+(\.\d+)?\z/
 
   major, minor, patch = current.split(".").map(&:to_i)
+  patch ||= 0
   case arg
   when "major" then "#{major + 1}.0.0"
   when "minor" then "#{major}.#{minor + 1}.0"
   when "patch", nil then "#{major}.#{minor}.#{patch + 1}"
-  else B.die("bad argument '#{arg}' (use patch|minor|major or an X.Y.Z version)")
+  else B.die("bad argument '#{arg}' (use patch|minor|major or an X.Y[.Z] version)")
   end
 end
 
 current = B.marketing_version
 version = bump(current, ARGV[0])
-tag     = "v#{version}"
+tag     = "#{SLUG}-ota-v#{version}"
 asset   = "#{APP_NAME}-#{version}.ipa"
 
 # The .ipa name carries the version, so this URL is both predictable before the
@@ -120,16 +170,19 @@ asset   = "#{APP_NAME}-#{version}.ipa"
 # past one). This tag check is what guards against re-releasing a version.
 download = "#{Uploader.base_url}/files/#{asset}"
 
-B.die("tag #{tag} already exists — bump to a new version") if `git tag -l #{tag}`.strip == tag
+existing_tag = `git -C #{REPO_ROOT.shellescape} tag -l #{tag.shellescape}`.strip
+B.die("tag #{tag} already exists -- bump to a new version") if existing_tag == tag
 
 # --- release notes -----------------------------------------------------------
 
-NOTE_NOISE = /\A(Release iOS v|Merge |Commit pending changes|Bump |wip\b)/i
+NOTE_NOISE = /\A(Release .*OTA |Release iOS v|Merge |Commit pending changes|Bump |wip\b)/i
 
 def notes_from_git
-  last = `git describe --tags --abbrev=0 --match 'v*' 2>/dev/null`.strip
+  last = `git -C #{REPO_ROOT.shellescape} describe --tags --abbrev=0 --match '#{SLUG}-ota-v*' 2>/dev/null`.strip
+  # Releases made before this pipeline were tagged vX.Y.Z.
+  last = `git -C #{REPO_ROOT.shellescape} describe --tags --abbrev=0 --match 'v*' 2>/dev/null`.strip if last.empty?
   range = last.empty? ? "HEAD -n 20" : "#{last}..HEAD"
-  subjects = `git log --no-merges --pretty=%s #{range}`.lines.map(&:strip)
+  subjects = `git -C #{REPO_ROOT.shellescape} log --no-merges --pretty=%s #{range}`.lines.map(&:strip)
   subjects.reject { |s| s.empty? || s =~ NOTE_NOISE }.uniq.first(8)
 end
 
@@ -144,13 +197,9 @@ end
 
 DESCRIPTION = release_notes(version)
 
-yml   = File.read(PROJECT_YML)
-build = (yml[/^\s*CURRENT_PROJECT_VERSION:\s*"?(\d+)"?/, 1] || "0").to_i + 1
-yml   = yml.sub(/^(\s*MARKETING_VERSION:\s*)"?[\d.]+"?/, "\\1\"#{version}\"")
-yml   = yml.sub(/^(\s*CURRENT_PROJECT_VERSION:\s*)"?\d+"?/, "\\1\"#{build}\"")
-File.write(PROJECT_YML, yml)
+build = B.current_project_version.to_i + 1
 
-puts B.bold("\n==> Releasing #{APP_NAME} #{current} -> #{version} (build #{build})")
+puts B.bold("\n==> Releasing #{APP_NAME} (OTA) #{current} -> #{version} (build #{build})")
 puts B.bold("\n    What's New:")
 puts DESCRIPTION.lines.map { |l| "      #{l}" }.join
 puts "\n    Install page: #{INSTALL_URL}"
@@ -160,31 +209,60 @@ unless ASSUME_YES
   B.die("aborted") unless $stdin.gets.to_s.strip.downcase.start_with?("y")
 end
 
+# --- write the bump ----------------------------------------------------------
+#
+# Nothing above this line touches the working tree, so an abort at the prompt
+# leaves nothing behind. From here on the tree is modified, and a run that dies
+# before the commit must put it back exactly as it was: a leftover bump is
+# invisible in this run's output but fails the *next* run's dirty-tree
+# preflight with an error pointing nowhere near the run that caused it.
+#
+# B.die exits, so at_exit is the one hook that covers every way out -- a failed
+# build, a failed upload, an uncaught exception, or Ctrl-C.
+
+MUTATED_FILES = [PROJECT_YML].freeze
+
+originals = MUTATED_FILES.to_h { |p| [p, File.exist?(p) ? File.read(p) : nil] }
+committed = false
+
+at_exit do
+  next if committed
+
+  originals.each do |file, content|
+    content.nil? ? FileUtils.rm_f(file) : File.write(file, content)
+  end
+end
+
+B.write_version(version, build)
+
 # --- build -------------------------------------------------------------------
 
-ipa = B.build(manifest: { app_url: download, icon_url: ICON_URL })
+devlog_url = if DEVLOG
+  B.env("DEVLOG_URL") || "http://#{`scutil --get LocalHostName`.strip}.local:19480/api/devlog"
+end
+puts "    DevLog: #{devlog_url}" if devlog_url
+ipa = B.build(manifest: { app_url: download, icon_url: ICON_URL }, ota_manifest_url: MANIFEST_URL, devlog_url: devlog_url)
 built_manifest = File.join(File.dirname(ipa), "manifest.plist")
 
 size   = File.size(ipa)
 sha256 = Digest::SHA256.file(ipa).hexdigest
 puts B.green("    #{asset} — #{(size / 1_048_576.0).round(1)} MB  sha256:#{sha256[0, 12]}…")
 
-B.die("export produced no manifest.plist — cannot publish the OTA route") unless File.exist?(built_manifest)
+B.die("export produced no manifest.plist -- cannot publish the OTA route") unless File.exist?(built_manifest)
 
 # --- publish -----------------------------------------------------------------
 #
 # Order matters. The manifest points at the .ipa and the install page points at
-# the manifest, so each must exist before the thing that references it — a
+# the manifest, so each must exist before the thing that references it -- a
 # manifest published ahead of its binary points at a 404.
 
-B.step "Uploading the .ipa"
+B.step "Publishing the .ipa"
 puts "    #{Uploader.upload(ipa, name: asset)}"
 
-B.step "Uploading the icon"
-puts "    #{Uploader.upload(File.join(__dir__, ICON_REL), name: PINNED_ICON)}"
+B.step "Publishing the icon"
+puts "    #{Uploader.upload(ICON_SOURCE, name: PINNED_ICON)}"
 
-B.step "Uploading the OTA manifest"
-FileUtils.cp(built_manifest, File.join(__dir__, MANIFEST_REL))
+B.step "Publishing the OTA manifest"
 puts "    #{Uploader.upload(built_manifest, name: PINNED_MANIFEST)}"
 
 def h(str)
@@ -197,7 +275,7 @@ install_page = <<~HTML
   <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Install AWH</title>
+  <title>Install #{h(APP_NAME)}</title>
   <style>
     :root { color-scheme: dark; }
     body {
@@ -226,10 +304,10 @@ install_page = <<~HTML
   <body>
   <main>
     <img class="icon" src="#{h(ICON_URL)}" alt="">
-    <h1>AWH</h1>
+    <h1>#{h(APP_NAME)}</h1>
     <p class="version">Version #{h(version)} (build #{h(build)})</p>
 
-    <a class="install" href="#{h(ITMS_URL)}">Install AWH</a>
+    <a class="install" href="#{h(ITMS_URL)}">Install #{h(APP_NAME)}</a>
 
     <p>Open this page in <strong>Safari</strong> — other browsers cannot start an
     install. Then confirm on the Home Screen prompt.</p>
@@ -250,14 +328,15 @@ install_page = <<~HTML
       <h2>Requirements</h2>
       <p>Your device must be registered on the developer account before a build
       is made. A device added afterwards needs a fresh <code>./deploy</code>
-      before it can install. iOS #{h(MIN_OS)} or later.</p>
+      before it can install.</p>
+      <p>Bundle ID: <code>#{h(BUNDLE_ID)}</code></p>
     </section>
   </main>
   </body>
   </html>
 HTML
 
-B.step "Uploading the install page"
+B.step "Publishing the install page"
 page = File.join(File.dirname(ipa), PINNED_INSTALL)
 File.write(page, install_page)
 puts "    #{Uploader.upload(page, name: PINNED_INSTALL)}"
@@ -267,33 +346,37 @@ FileUtils.remove_entry(File.dirname(ipa))
 # --- commit ------------------------------------------------------------------
 
 B.step "Committing + pushing"
-B.run("git add #{PROJECT_YML.shellescape} #{MANIFEST_REL.shellescape}", chdir: __dir__)
-B.run("git commit -m 'Release iOS #{tag}'", chdir: __dir__)
-B.run("git tag #{tag}", chdir: __dir__)
+B.run("git add #{PROJECT_YML_REL.shellescape}", chdir: REPO_ROOT)
+B.run("git commit -m #{"Release #{APP_NAME} OTA #{tag}".shellescape}", chdir: REPO_ROOT)
+# The bump lives in a commit now; the at_exit restore must not undo it.
+committed = true
 
-# git-sync is installed as a global post-commit hook and pushes to this remote
-# the instant a commit lands, so by the time we push the ref may already be
-# where we wanted it — which git reports as a failure. Treating that as fatal
-# would abort *after* publishing, leaving an install page advertising a build
-# whose commit was never pushed. So on failure, ask the remote what it holds.
+# Annotated, because with tag.gpgsign set a lightweight `git tag` asks for a
+# message and fails without a terminal.
+B.run("git tag -a #{tag.shellescape} -m #{"#{APP_NAME} OTA #{version}".shellescape}", chdir: REPO_ROOT)
+
+# git-sync may push the commit before we do, which makes our push fail with
+# nothing left to push. That still counts: what matters is that the remote has
+# our HEAD.
 def push_branch(branch, chdir:)
-  cmd = "git push github #{branch} --tags"
+  cmd = "git push #{REMOTE} #{branch.shellescape} --tags"
   puts "    $ #{cmd}"
   return if system(cmd, chdir: chdir)
 
   local  = `git -C #{chdir.shellescape} rev-parse HEAD`.strip
-  remote = `git -C #{chdir.shellescape} ls-remote github refs/heads/#{branch}`.split.first.to_s
+  remote = `git -C #{chdir.shellescape} ls-remote #{REMOTE} refs/heads/#{branch}`.split.first.to_s
   unless !local.empty? && local == remote
     B.die("command failed: #{cmd} (remote is at #{remote.empty? ? "nothing" : remote[0, 7]}, " \
           "we are at #{local[0, 7]})")
   end
 
-  puts B.green("    remote already at #{local[0, 7]} — pushed by the git-sync hook; continuing")
+  puts B.green("    remote already at #{local[0, 7]} — pushed already; continuing")
 end
 
-push_branch(BRANCH, chdir: __dir__)
+push_branch(BRANCH, chdir: REPO_ROOT)
 
-puts B.green("\n✓ Published #{APP_NAME} #{version}")
+puts B.green("\n✓ Published #{APP_NAME} OTA #{version}")
 puts B.bold("\n    Install from Safari on the device:")
 puts B.bold("    #{INSTALL_URL}")
+puts "    Manifest: #{MANIFEST_URL}"
 puts "\n    Add it to the Home Screen once; it always installs the newest release."

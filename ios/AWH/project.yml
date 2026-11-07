@@ -8,6 +8,10 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "18.0"
+    # Signing defaults (team, bundle ID); Config/Local.xcconfig overrides them.
+    configFiles:
+      Debug: Config/AWH.xcconfig
+      Release: Config/AWH.xcconfig
     sources:
       - path: Sources
         excludes:
@@ -23,6 +27,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchStoryboardName: LaunchScreen
         UIStatusBarHidden: true
+        # Filled by ./deploy on the xcodebuild command line; empty in other builds,
+        # which then offer no "Install Latest" quick action.
+        AWHOTAManifestURL: $(AWH_OTA_MANIFEST_URL)
         UIViewControllerBasedStatusBarAppearance: false
         NSAppleMusicUsageDescription: AWH controls the system music player when the live page asks it to.
         NSAppTransportSecurity:
@@ -38,9 +45,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     settings:
       base:
-        DEVELOPMENT_TEAM: Q3WS4MWCW3
         CODE_SIGN_STYLE: Automatic
-        PRODUCT_BUNDLE_IDENTIFIER: com.awh.app
+        PRODUCT_BUNDLE_IDENTIFIER: $(AWH_BUNDLE_ID)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: "3"

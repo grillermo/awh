@@ -1,0 +1,12 @@
+// Committed signing defaults for AWH, so a fresh clone builds as is.
+// ios/AWH/Config/Local.xcconfig (gitignored, optional) overrides any of them.
+//
+// MARKETING_VERSION / CURRENT_PROJECT_VERSION are NOT here: they live in
+// project.yml, where ./deploy bumps them. The OTA manifest URL is not here either:
+// an xcconfig reads the `//` in a URL as a comment, so ./deploy passes
+// AWH_OTA_MANIFEST_URL on the xcodebuild command line instead.
+
+DEVELOPMENT_TEAM = Q3WS4MWCW3
+AWH_BUNDLE_ID = com.awh.app
+
+#include? "Local.xcconfig"
