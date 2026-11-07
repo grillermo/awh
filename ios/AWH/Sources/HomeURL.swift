@@ -25,4 +25,13 @@ enum HomeURL {
 
         return url
     }
+
+    /// Scheme, host and port of `url` with no path: where the API lives.
+    static func origin(of url: URL) -> URL {
+        var parts = URLComponents()
+        parts.scheme = url.scheme
+        parts.host = url.host
+        parts.port = url.port
+        return parts.url ?? url
+    }
 }

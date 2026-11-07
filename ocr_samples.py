@@ -148,3 +148,69 @@ class SampleCollector:
             self._used_bytes += written + len(line.encode())
         print(f"[samples] saved {kind} sample {ocr_text.strip()!r} → {proc_path}")
         return rec
+
+
+# --- Browsing and picking samples (served to the iOS app) -------------------
+
+def sample_id(rec):
+    """Stable id for a sample: '<kind>/<file stem>', e.g. 'text/20261106-182945_4C'."""
+    stem = os.path.basename(rec["ocr"])
+    if stem.endswith("_ocr.png"):
+        stem = stem[: -len("_ocr.png")]
+    return f"{rec['kind']}/{stem}"
+
+
+def list_samples(root=SAMPLES_DIR):
+    """Every sample in index.jsonl whose images still exist, newest first."""
+    path = os.path.join(root, "index.jsonl")
+    if not os.path.exists(path):
+        return []
+    out = []
+    with open(path) as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if not os.path.exists(rec.get("ocr", "")):
+                continue
+            out.append({
+                "id": sample_id(rec),
+                "kind": rec["kind"],
+                "ocr_text": rec["ocr_text"],
+                "at": rec["at"],
+                "ocr_image": os.path.relpath(rec["ocr"], root),
+                "raw_image": os.path.relpath(rec["raw"], root),
+            })
+    out.sort(key=lambda r: r["at"], reverse=True)
+    return out
+
+
+def _selection_table(conn):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ocr_sample_selection (
+            sample_id TEXT PRIMARY KEY,
+            selected_at REAL NOT NULL
+        )
+        """
+    )
+
+
+def load_selection(conn):
+    _selection_table(conn)
+    return {row[0] for row in conn.execute("SELECT sample_id FROM ocr_sample_selection")}
+
+
+def update_selection(conn, select=(), deselect=(), now=None):
+    _selection_table(conn)
+    now = time.time() if now is None else now
+    conn.executemany(
+        "INSERT OR IGNORE INTO ocr_sample_selection (sample_id, selected_at) VALUES (?, ?)",
+        [(sid, now) for sid in select],
+    )
+    conn.executemany(
+        "DELETE FROM ocr_sample_selection WHERE sample_id = ?",
+        [(sid,) for sid in deselect],
+    )
+    conn.commit()

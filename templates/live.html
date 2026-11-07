@@ -100,6 +100,15 @@
       pointer-events: none;
       animation: home-pulse 0.8s ease-in-out infinite;
     }
+    #samples-link {
+      color: #888;
+      font-family: monospace;
+      font-size: 15px;
+      letter-spacing: 1px;
+      text-decoration: none;
+      margin-top: 12px;
+    }
+    #samples-link[hidden] { display: none; }
     @keyframes home-pulse { 50% { opacity: 0.3; } }
     #ocr-text {
       font-size: clamp(64px, 15vw, 200px);
@@ -217,6 +226,7 @@
       <div id="reset-count">0</div>
       <div id="reset-count-label">RESETS</div>
       <a id="home-link" href="/">← HOME</a>
+      <a id="samples-link" href="#" hidden>OCR SAMPLES</a>
     </div>
   </main>
   <div id="error-bar"><div id="error-fill"></div></div>
@@ -400,6 +410,16 @@
           homeLink.classList.add('is-loading');
           homeLink.textContent = 'LOADING…';
         });
+        // Only inside the iOS app, which opens its native sample picker.
+        const samplesBridge = window.webkit?.messageHandlers?.ocrSamples;
+        const samplesLink = document.getElementById('samples-link');
+        if (samplesBridge) {
+          samplesLink.hidden = false;
+          samplesLink.addEventListener('click', e => {
+            e.preventDefault();
+            samplesBridge.postMessage('open');
+          });
+        }
         document.getElementById('reset-btn').addEventListener('pointerdown', e => {
           e.preventDefault();
           triggerReset();

@@ -6,18 +6,20 @@ import WebKit
 ///
 /// The page can drive native audio through a JS bridge — it posts
 /// `window.webkit.messageHandlers.soundBridge.postMessage("playSound")` and the
-/// coordinator toggles `MPMusicPlayerController.systemMusicPlayer`. Nothing
-/// else crosses the bridge.
+/// coordinator toggles `MPMusicPlayerController.systemMusicPlayer`. The only
+/// other message is `ocrSamples` / "open", which opens `OcrSamplesView`.
 struct KioskWebView: UIViewRepresentable {
     let url: URL
+    let onOpenOcrSamples: @MainActor () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(controller: KioskController(url: url))
+        Coordinator(controller: KioskController(url: url), onOpenOcrSamples: onOpenOcrSamples)
     }
 
     func makeUIView(context: Context) -> WKWebView {
         let contentController = WKUserContentController()
         contentController.add(context.coordinator, name: SoundBridgeMessage.handlerName)
+        contentController.add(context.coordinator, name: OcrSamplesMessage.handlerName)
 
         let config = WKWebViewConfiguration()
         config.userContentController = contentController
@@ -49,6 +51,8 @@ struct KioskWebView: UIViewRepresentable {
         MainActor.assumeIsolated { coordinator.controller.cancelRetry() }
         uiView.configuration.userContentController
             .removeScriptMessageHandler(forName: SoundBridgeMessage.handlerName)
+        uiView.configuration.userContentController
+            .removeScriptMessageHandler(forName: OcrSamplesMessage.handlerName)
         uiView.navigationDelegate = nil
     }
 
@@ -58,9 +62,11 @@ struct KioskWebView: UIViewRepresentable {
     /// method below on the main thread, so `assumeIsolated` is sound.
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let controller: KioskController
+        let onOpenOcrSamples: @MainActor () -> Void
 
-        init(controller: KioskController) {
+        init(controller: KioskController, onOpenOcrSamples: @escaping @MainActor () -> Void) {
             self.controller = controller
+            self.onOpenOcrSamples = onOpenOcrSamples
         }
 
         @objc func handleRefresh() {
@@ -69,6 +75,10 @@ struct KioskWebView: UIViewRepresentable {
 
         func userContentController(_ userContentController: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
+            if OcrSamplesMessage.isOpen(name: message.name, body: message.body) {
+                MainActor.assumeIsolated { onOpenOcrSamples() }
+                return
+            }
             guard SoundBridgeMessage.isPlaySound(name: message.name, body: message.body) else {
                 return
             }

@@ -10,10 +10,11 @@ from setproctitle import setproctitle
 setproctitle("awh")
 
 import cv2
-from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 
-from ocr_samples import SampleCollector
-from auto_reset import DISPLAY_CROP, capture_frame, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
+from ocr_samples import SAMPLES_DIR, SampleCollector, list_samples, load_selection, update_selection
+from auto_reset import DISPLAY_CROP, capture_frame, get_error_db_connection, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -229,6 +230,35 @@ def live():
     return render_template("live.html")
 
 
+@app.get("/api/ocr-samples")
+def api_ocr_samples():
+    with get_error_db_connection() as conn:
+        selected = load_selection(conn)
+    samples = list_samples()
+    for sample in samples:
+        sample["selected"] = sample["id"] in selected
+    return jsonify({"ok": True, "samples": samples})
+
+
+@app.post("/api/ocr-samples/selection")
+def api_ocr_samples_selection():
+    data = request.get_json(force=True, silent=True) or {}
+    select, deselect = data.get("select", []), data.get("deselect", [])
+    if not all(isinstance(v, list) and all(isinstance(i, str) for i in v) for v in (select, deselect)):
+        return jsonify({"ok": False, "error": "select and deselect must be arrays of sample ids"}), 400
+    with get_error_db_connection() as conn:
+        update_selection(conn, select=select, deselect=deselect)
+        count = len(load_selection(conn))
+    return jsonify({"ok": True, "selected_count": count})
+
+
+@app.get("/ocr-samples/<kind>/<path:filename>")
+def ocr_sample_image(kind, filename):
+    if kind not in ("text", "digit", "empty") or not filename.endswith(".png"):
+        abort(404)
+    return send_from_directory(os.path.join(SAMPLES_DIR, kind), filename, max_age=86400)
+
+
 @app.post("/report-error")
 def report_error():
     body = request.get_data(as_text=True)
@@ -238,6 +268,8 @@ def report_error():
 
 @app.errorhandler(Exception)
 def handle_exception(exc):
+    if isinstance(exc, HTTPException):
+        return exc
     traceback.print_exc()
     return jsonify({"ok": False, "error": str(exc)}), 500
 

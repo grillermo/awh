@@ -102,5 +102,35 @@ class CollectorTest(unittest.TestCase):
             self.assertEqual(len([json.loads(l) for l in fh]), ocr_samples.TEXT_MAX_PER_TEXT)
 
 
+class BrowseAndSelectTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.clock = Clock()
+
+    def test_lists_samples_newest_first_with_stable_ids(self):
+        c = SampleCollector(root=self.dir, clock=self.clock)
+        c.maybe_save("E1", *frames())
+        self.clock.t += 5
+        c.maybe_save("5", *frames())
+        samples = ocr_samples.list_samples(self.dir)
+        self.assertEqual([s["ocr_text"] for s in samples], ["5", "E1"])
+        self.assertTrue(samples[1]["id"].startswith("text/"))
+        self.assertTrue(samples[1]["id"].endswith("_E1"))
+        self.assertEqual(samples[1]["ocr_image"], samples[1]["id"] + "_ocr.png")
+
+    def test_skips_samples_whose_images_were_deleted(self):
+        rec = SampleCollector(root=self.dir, clock=self.clock).maybe_save("E1", *frames())
+        os.remove(rec["ocr"])
+        self.assertEqual(ocr_samples.list_samples(self.dir), [])
+
+    def test_selection_round_trip(self):
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        self.assertEqual(ocr_samples.load_selection(conn), set())
+        ocr_samples.update_selection(conn, select=["a", "b", "c"])
+        ocr_samples.update_selection(conn, select=["a"], deselect=["b"])
+        self.assertEqual(ocr_samples.load_selection(conn), {"a", "c"})
+
+
 if __name__ == "__main__":
     unittest.main()
