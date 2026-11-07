@@ -13,8 +13,9 @@ import cv2
 from werkzeug.exceptions import HTTPException
 from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 
+from display_reading import classify
 from ocr_samples import SAMPLES_DIR, SampleCollector, list_samples, load_selection, update_selection
-from auto_reset import DISPLAY_CROP, capture_frame, get_error_db_connection, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, load_display_view, reset_tapo100, save_display_crop, save_display_view
+from auto_reset import DISPLAY_CROP, capture_frame, get_error_db_connection, crop_frame, enhance_frame, fix_perspective_frame, get_ocr_reader, load_display_crop, read_display, load_display_view, reset_tapo100, save_display_crop, save_display_view
 
 app = Flask(__name__)
 
@@ -29,19 +30,22 @@ class _FrameState:
     def __init__(self):
         self.frame_b64 = None
         self.ocr_text = ""
+        self.ocr_kind = "none"
         self.captured_at = None
         self._lock = threading.Lock()
 
-    def update(self, frame_b64, ocr_text):
+    def update(self, frame_b64, ocr_text, ocr_kind):
         with self._lock:
             self.frame_b64 = frame_b64
             self.ocr_text = ocr_text
+            self.ocr_kind = ocr_kind
             self.captured_at = time.time()
 
     def clear(self):
         with self._lock:
             self.frame_b64 = None
             self.ocr_text = ""
+            self.ocr_kind = "none"
             self.captured_at = None
 
     def snapshot(self):
@@ -49,6 +53,7 @@ class _FrameState:
             return {
                 "frame_b64": self.frame_b64,
                 "ocr_text": self.ocr_text,
+                "ocr_kind": self.ocr_kind,
                 "captured_at": self.captured_at,
             }
 
@@ -70,17 +75,21 @@ def _capture_loop():
             frame = capture_frame()
             if frame is not None:
                 cropped = crop_frame(frame, coords=crop)
+                # The enhanced, perspective-fixed frame is only for people to
+                # look at; OCR reads the raw crop, which it reads better.
                 fixed = enhance_frame(fix_perspective_frame(cropped))
-                detections = reader.readtext(fixed, detail=0)
-                ocr_text = " ".join(detections).strip()
+                raw_text, score = read_display(reader, cropped)
+                # Only what the heater's manual says the display can show
+                # survives: a temperature, an error code or a menu code.
+                ocr_kind, ocr_text = classify(raw_text, score)
                 try:
-                    samples.maybe_save(ocr_text, cropped, fixed)
+                    samples.maybe_save(raw_text, cropped, fixed, score=score)
                 except Exception as exc:
                     print(f"[samples] save failed: {exc}")
                 ok, buf = cv2.imencode(".jpg", fixed, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 print("capturing, cropping and fixing frame")
                 b64 = base64.b64encode(buf).decode()
-                _state.update(b64, ocr_text)
+                _state.update(b64, ocr_text, ocr_kind)
         except Exception as exc:
             print(f"[live] capture error: {exc}")
             traceback.print_exc()
@@ -189,7 +198,8 @@ def last_frame():
     snap = _state.snapshot()
     if snap["frame_b64"] is None:
         return jsonify({"ok": False, "error": "no frame yet"}), 503
-    return jsonify({"ok": True, "frame_b64": snap["frame_b64"], "ocr_text": snap["ocr_text"]})
+    return jsonify({"ok": True, "frame_b64": snap["frame_b64"],
+                    "ocr_text": snap["ocr_text"], "ocr_kind": snap["ocr_kind"]})
 
 
 @app.post("/reset")

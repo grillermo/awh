@@ -127,7 +127,7 @@ class SampleCollector:
                 return kind
         return None
 
-    def maybe_save(self, ocr_text, raw, processed):
+    def maybe_save(self, ocr_text, raw, processed, score=None):
         kind = self.should_save(ocr_text)
         if kind is None:
             return None
@@ -142,6 +142,8 @@ class SampleCollector:
         cv2.imwrite(proc_path, processed)
         written = os.path.getsize(raw_path) + os.path.getsize(proc_path)
         rec = {"at": now, "kind": kind, "ocr_text": ocr_text.strip(), "raw": raw_path, "ocr": proc_path}
+        if score is not None:
+            rec["score"] = round(score, 3)
         line = json.dumps(rec) + "\n"
         with self._lock, open(os.path.join(self.root, "index.jsonl"), "a") as fh:
             fh.write(line)

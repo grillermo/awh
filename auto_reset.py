@@ -173,9 +173,22 @@ def load_display_view(path=ERROR_DB_PATH):
 
 @functools.lru_cache(maxsize=1)
 def get_ocr_reader():
-    import easyocr
-    print("[ocr] Initialising EasyOCR reader (first call downloads model if needed)")
-    return easyocr.Reader(["en"], gpu=False, verbose=False)
+    """
+    RapidOCR's PP-OCRv6 recogniser, run without text detection: the crop is
+    already the display. In the ocr_bench shoot-out (Nov 2026) it read 33/33
+    hand-picked "45" frames in ~10 ms on the raw crop; EasyOCR read 6/33.
+    """
+    from rapidocr import RapidOCR
+    print("[ocr] Initialising RapidOCR (recognition only)")
+    return RapidOCR()
+
+
+def read_display(reader, cropped):
+    """OCR the raw display crop. Returns (text, confidence 0..1)."""
+    res = reader(cropped, use_det=False, use_cls=False, use_rec=True)
+    if not res.txts:
+        return "", 0.0
+    return res.txts[0], float(res.scores[0])
 
 
 def reset_tapo100():

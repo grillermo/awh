@@ -386,7 +386,10 @@
 
               await renderFrame(data);
               ocrEl.textContent = data.ocr_text || '—';
-              const isErr = data.ocr_text && !/^\d/.test(data.ocr_text);
+              // The server only reports "error" for a confident reading of an
+              // error code from the heater's manual (display_reading.py);
+              // temperatures, menu codes and unreadable frames never reset.
+              const isErr = data.ocr_kind === 'error';
               ocrEl.classList.toggle('is-error', isErr);
               lastTs = Date.now();
 
