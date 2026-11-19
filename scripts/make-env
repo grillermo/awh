@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 # Writes the gitignored secrets file for the Go server from the constants in auto_reset.py.
 # Prints no secret values. Run it from anywhere; it works in the worktree it lives in.
+# Refuses to overwrite an existing file (the same name is the deploy config in the
+# main checkout); pass --force to replace it.
 # A constant may be a plain string or os.environ.get("NAME", "default"); the default is used.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 src="$root/auto_reset.py"
 out="$root/.$(printf '%s' env)"
+force=0
+case "${1:-}" in
+  "") ;;
+  --force) force=1 ;;
+  *) echo "usage: make-env [--force]" >&2; exit 64 ;;
+esac
+if [ -e "$out" ] && [ "$force" != 1 ]; then
+  echo "error: $out already exists; not overwriting it (use --force to replace it)" >&2
+  exit 1
+fi
 py="${PYTHON:-python3}"
 [ -x "$root/python_env/bin/python" ] && py="$root/python_env/bin/python"
 
