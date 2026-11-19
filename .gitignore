@@ -8,3 +8,6 @@ ocr-examples.html
 .env
 ios/AWH/Config/Local.xcconfig
 .worktrees/
+
+# wakeproxy build output (see ./serve-lazy)
+wakeproxy/wakeproxy

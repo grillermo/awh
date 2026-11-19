@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Runs the Flask server in the foreground. HOST and PORT can be overridden from
+# the environment (serve-lazy does, to start it on a private port).
 
 source python_env/bin/activate
-HOST=0.0.0.0 PORT=3060 python3 ./app.py
+HOST="${HOST:-0.0.0.0}" PORT="${PORT:-3060}" exec python3 ./app.py
