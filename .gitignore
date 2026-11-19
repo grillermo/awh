@@ -16,3 +16,6 @@ eval/images/
 /awh
 /awh-ocr-eval
 /ocr_samples
+
+# Go server credentials
+.env.awh

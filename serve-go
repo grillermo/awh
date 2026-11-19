@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
-set -a; . ./.env; set +a
+set -a; . ./.env.awh; set +a
 go build -o awh ./cmd/awh
 exec env GOMEMLIMIT=24MiB HOST="${HOST:-0.0.0.0}" PORT="${PORT:-3060}" ./awh "$@"
