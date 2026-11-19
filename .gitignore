@@ -19,3 +19,5 @@ eval/images/
 
 # Go server credentials
 .env.awh
+/AWH LAN.app/
+/logs/
