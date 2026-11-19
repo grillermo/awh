@@ -50,7 +50,11 @@ func ResizeLinear(m Image, w, h int) Image {
 		row(t.i0, r0)
 		row(t.i1, r1)
 		for i := range r0 {
-			v := (r0[i]*t.a0 + r1[i]*t.a1 + 1<<(2*coefBits-1)) >> (2 * coefBits)
+			// Mirrors cv2's arm64 (NEON) vertical pass, which drops 4 bits of the
+			// horizontal sums and shifts each product by 16 before adding, instead
+			// of one rounded shift by 22. It differs from the plain formula by up
+			// to 1 grey level. Values stay under 2^26, so int64 cannot overflow.
+			v := (((t.a0 * (r0[i] >> 4)) >> 16) + ((t.a1 * (r1[i] >> 4)) >> 16) + 2) >> 2
 			out.Pix[y*w*3+i] = uint8(min(max(v, 0), 255))
 		}
 	}
