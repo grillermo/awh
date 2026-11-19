@@ -8,7 +8,7 @@
 // SIGTERM (SIGKILL after -stop-grace) and its memory goes back to the system.
 // The next request wakes it again.
 //
-//	wakeproxy -listen 0.0.0.0:3060 -backend 127.0.0.1:3070 -idle 30m -- ./serve
+//	wakeproxy -listen 0.0.0.0:3060 -backend 127.0.0.1:3069 -idle 30m -- ./serve
 //
 // The command gets HOST and PORT in its environment, taken from -backend.
 package main
@@ -34,7 +34,7 @@ import (
 
 func main() {
 	listen := flag.String("listen", "0.0.0.0:3060", "public address to listen on")
-	backendAddr := flag.String("backend", "127.0.0.1:3070", "private address the server is started on (passed as HOST and PORT)")
+	backendAddr := flag.String("backend", "127.0.0.1:3069", "private address the server is started on (passed as HOST and PORT)")
 	idle := flag.Duration("idle", 30*time.Minute, "stop the server after this long without requests")
 	startTimeout := flag.Duration("start-timeout", 2*time.Minute, "give up if the server does not accept connections within this long")
 	stopGrace := flag.Duration("stop-grace", 10*time.Second, "time between SIGTERM and SIGKILL when stopping the server")

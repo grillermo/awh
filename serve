@@ -49,7 +49,7 @@ open -n --stdout "$log" --stderr "$log" "$app" --args /bin/sh -c '
   export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   exec env GOMEMLIMIT=24MiB ./wakeproxy \
     -listen "${HOST:-0.0.0.0}:${PORT:-3060}" \
-    -backend "127.0.0.1:${BACKEND_PORT:-3071}" \
+    -backend "127.0.0.1:${BACKEND_PORT:-3069}" \
     -idle "${IDLE:-30m}" \
     -- ./awh "$@"
 ' sh "$PWD" "$@"
