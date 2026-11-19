@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"log"
 	"math/rand/v2"
@@ -22,6 +21,10 @@ import (
 	"github.com/grillermo/awh/internal/store"
 	"github.com/grillermo/awh/internal/tapo"
 )
+
+// shutdownGrace must outlast a /reset: off call, the 10 s wait, then the
+// turn-on call with its re-handshake retry.
+const shutdownGrace = 90 * time.Second
 
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
@@ -41,6 +44,14 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "never switch the Tapo plug")
 	shadowDir := flag.String("shadow-dir", "", "record a crop + reading every 10 s here (eval)")
 	flag.Parse()
+
+	// Exit non-zero on a serve failure, but only after the deferred closes ran.
+	var failed bool
+	defer func() {
+		if failed {
+			os.Exit(1)
+		}
+	}()
 
 	rtsp := os.Getenv("AWH_RTSP_URL")
 	if rtsp == "" {
@@ -78,16 +89,17 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go srv.Loop(ctx)
-	hs := &http.Server{Addr: *addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
-	go func() {
-		<-ctx.Done()
-		shut, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		hs.Shutdown(shut)
-	}()
-	log.Printf("awh listening on %s (dry-run=%v)", *addr, *dryRun)
-	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
 		log.Fatal(err)
+	}
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	log.Printf("awh listening on %s (dry-run=%v)", *addr, *dryRun)
+	// Run returns only after in-flight requests (a /reset takes ~10 s plus
+	// retries) have finished and the capture loop has exited, so the deferred
+	// closes above never race a reset or an OCR run.
+	if err := srv.Run(ctx, hs, ln, shutdownGrace); err != nil {
+		log.Printf("awh: %v", err)
+		failed = true
 	}
 }

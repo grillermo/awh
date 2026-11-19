@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -230,6 +231,41 @@ func (s *Server) Loop(ctx context.Context) {
 			sleep(ctx, time.Second)
 		}
 	}
+}
+
+// Run serves hs on ln and runs the capture loop until ctx ends. It then shuts
+// the HTTP server down, waiting up to grace for in-flight requests (a /reset
+// is off, wait, on and must finish or the heater stays off), and waits for the
+// loop to exit, so the caller can safely close the recognizer and store when
+// Run returns.
+func (s *Server) Run(ctx context.Context, hs *http.Server, ln net.Listener, grace time.Duration) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	loopDone := make(chan struct{})
+	go func() { defer close(loopDone); s.Loop(ctx) }()
+
+	shutDone := make(chan struct{})
+	go func() {
+		defer close(shutDone)
+		<-ctx.Done()
+		shut, cancel := context.WithTimeout(context.Background(), grace)
+		defer cancel()
+		if err := hs.Shutdown(shut); err != nil {
+			log.Printf("[http] shutdown: %v", err)
+			hs.Close()
+		}
+	}()
+
+	err := hs.Serve(ln)
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	} else {
+		cancel() // Serve failed on its own: stop the loop and the shutdown goroutine
+	}
+	// Serve returns as soon as Shutdown starts; wait for it to drain.
+	<-shutDone
+	<-loopDone
+	return err
 }
 
 func sleep(ctx context.Context, d time.Duration) {

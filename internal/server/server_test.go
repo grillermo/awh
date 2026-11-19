@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -353,5 +354,55 @@ func TestResetRejectsCrossOrigin(t *testing.T) {
 		if c := post(o); c != 200 {
 			t.Errorf("origin %q: %d", o, c)
 		}
+	}
+}
+
+func TestShutdownWaitsForAResetInFlight(t *testing.T) {
+	br := newBlockingReset()
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "db.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(fakeCam{}, fakeOCR{"E1"}, br, st, nil, Options{SamplesDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() { runDone <- s.Run(ctx, &http.Server{Handler: s.Handler()}, ln, 30*time.Second) }()
+
+	resp := make(chan int, 1)
+	go func() {
+		r, err := http.Post("http://"+ln.Addr().String()+"/reset", "application/json", nil)
+		if err != nil {
+			resp <- -1
+			return
+		}
+		r.Body.Close()
+		resp <- r.StatusCode
+	}()
+	<-br.entered
+	stop() // SIGTERM while the plug is off
+	select {
+	case err := <-runDone:
+		t.Fatalf("Run returned (%v) while a reset was still in flight", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(br.release)
+	if c := <-resp; c != 200 {
+		t.Fatalf("reset answered %d", c)
+	}
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after the reset finished")
 	}
 }
