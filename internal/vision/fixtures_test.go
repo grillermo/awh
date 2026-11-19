@@ -35,8 +35,8 @@ func TestResizeMatchesCv2(t *testing.T) {
 		got := ResizeLinear(src, want.W, want.H)
 		mx, mean := diff(got, want)
 		t.Logf("%s resize: max |diff| %d, mean %.4f", n, mx, mean)
-		if mx > 1 {
-			t.Errorf("%s: max |diff| %d grey levels, want <= 1", n, mx)
+		if mx != 0 {
+			t.Errorf("%s: max |diff| %d grey levels, want exactly 0", n, mx)
 		}
 	}
 }
