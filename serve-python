@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+source python_env/bin/activate
+HOST=0.0.0.0 PORT=3060 python3 ./app.py

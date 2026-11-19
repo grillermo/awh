@@ -8,6 +8,17 @@ ocr-examples.html
 .env
 ios/AWH/Config/Local.xcconfig
 .worktrees/
+ocr_bench/python_env/
+ocr_bench/__pycache__/
+models/*.onnx
+eval/shadow/
+eval/images/
+/awh
+/awh-ocr-eval
+/ocr_samples
 
-# wakeproxy build output (see ./serve-lazy)
-wakeproxy/wakeproxy
+# Go server credentials
+.env.awh
+/AWH LAN.app/
+/logs/
+/wakeproxy

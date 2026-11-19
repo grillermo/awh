@@ -1,0 +1,209 @@
+{
+ "model": "apple_vision_accurate",
+ "hits": 9,
+ "total": 33,
+ "median_ms": 183.3,
+ "p95_ms": 188.2,
+ "max_ms": 255.8,
+ "load_s": 0.0,
+ "rows": [
+  {
+   "id": "digit/20261106-182954_0",
+   "text": "Sh",
+   "ms": 188.1,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182947_5",
+   "text": "",
+   "ms": 173.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182945_4C",
+   "text": "5h",
+   "ms": 188.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182929_4S",
+   "text": "5h",
+   "ms": 182.7,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182844_5",
+   "text": "",
+   "ms": 179.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182838_1G",
+   "text": "",
+   "ms": 178.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182831_uG",
+   "text": "",
+   "ms": 178.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182822_UG",
+   "text": "5h",
+   "ms": 187.2,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182818_0",
+   "text": "",
+   "ms": 176.9,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182755_4G",
+   "text": "45",
+   "ms": 187.8,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182714_4C",
+   "text": "",
+   "ms": 183.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182707_UG",
+   "text": "",
+   "ms": 182.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182624_4G",
+   "text": "45",
+   "ms": 181.3,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182548_VS",
+   "text": "",
+   "ms": 180.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182546_UL",
+   "text": "45\u00b0",
+   "ms": 187.3,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182540_UC",
+   "text": "\u04275\u00b0",
+   "ms": 186.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182537_VE",
+   "text": "",
+   "ms": 178.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182513_Vt",
+   "text": "15h",
+   "ms": 183.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182504_U5t",
+   "text": "",
+   "ms": 182.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182501_V5",
+   "text": "43",
+   "ms": 184.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182455_VGt",
+   "text": "45",
+   "ms": 189.0,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182453_Un",
+   "text": "45",
+   "ms": 188.2,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182446_UGt",
+   "text": "",
+   "ms": 185.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182444_Vst",
+   "text": "45",
+   "ms": 186.5,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182420_WSt",
+   "text": "",
+   "ms": 176.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182413_Ur",
+   "text": "",
+   "ms": 181.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182355_UG",
+   "text": "",
+   "ms": 185.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182353_Gt",
+   "text": "",
+   "ms": 180.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182351_Uft",
+   "text": "",
+   "ms": 178.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182346_HGt",
+   "text": "45\u00b0",
+   "ms": 183.7,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182344_UGt",
+   "text": "45",
+   "ms": 184.8,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182337_U5t",
+   "text": "45\u00b0",
+   "ms": 255.8,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182335_Vt",
+   "text": "",
+   "ms": 182.6,
+   "hit": false
+  }
+ ]
+}

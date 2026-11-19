@@ -1,0 +1,233 @@
+[
+ {
+  "id": "digit/20261106-182954_0",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182954_0_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182954_0_raw.png",
+  "easyocr_live": "0",
+  "truth": "45"
+ },
+ {
+  "id": "digit/20261106-182947_5",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182947_5_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182947_5_raw.png",
+  "easyocr_live": "5",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182945_4C",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182945_4C_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182945_4C_raw.png",
+  "easyocr_live": "4C",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182929_4S",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182929_4S_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182929_4S_raw.png",
+  "easyocr_live": "4S",
+  "truth": "45"
+ },
+ {
+  "id": "digit/20261106-182844_5",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182844_5_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182844_5_raw.png",
+  "easyocr_live": "5",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182838_1G",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182838_1G_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182838_1G_raw.png",
+  "easyocr_live": "1G",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182831_uG",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182831_uG_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182831_uG_raw.png",
+  "easyocr_live": "uG",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182822_UG",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182822_UG_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182822_UG_raw.png",
+  "easyocr_live": "UG",
+  "truth": "45"
+ },
+ {
+  "id": "digit/20261106-182818_0",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182818_0_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/digit/20261106-182818_0_raw.png",
+  "easyocr_live": "0",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182755_4G",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182755_4G_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182755_4G_raw.png",
+  "easyocr_live": "4G",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182714_4C",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182714_4C_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182714_4C_raw.png",
+  "easyocr_live": "4C",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182707_UG",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182707_UG_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182707_UG_raw.png",
+  "easyocr_live": "UG;",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182624_4G",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182624_4G_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182624_4G_raw.png",
+  "easyocr_live": "4G",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182548_VS",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182548_VS_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182548_VS_raw.png",
+  "easyocr_live": "VS",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182546_UL",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182546_UL_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182546_UL_raw.png",
+  "easyocr_live": "UL",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182540_UC",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182540_UC_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182540_UC_raw.png",
+  "easyocr_live": "UC",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182537_VE",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182537_VE_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182537_VE_raw.png",
+  "easyocr_live": "VE",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182513_Vt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182513_Vt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182513_Vt_raw.png",
+  "easyocr_live": "Vt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182504_U5t",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182504_U5t_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182504_U5t_raw.png",
+  "easyocr_live": "U5t",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182501_V5",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182501_V5_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182501_V5_raw.png",
+  "easyocr_live": "V5",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182455_VGt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182455_VGt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182455_VGt_raw.png",
+  "easyocr_live": "VGt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182453_Un",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182453_Un_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182453_Un_raw.png",
+  "easyocr_live": "Un",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182446_UGt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182446_UGt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182446_UGt_raw.png",
+  "easyocr_live": "UGt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182444_Vst",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182444_Vst_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182444_Vst_raw.png",
+  "easyocr_live": "Vst",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182420_WSt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182420_WSt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182420_WSt_raw.png",
+  "easyocr_live": "WSt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182413_Ur",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182413_Ur_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182413_Ur_raw.png",
+  "easyocr_live": "Ur",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182355_UG",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182355_UG_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182355_UG_raw.png",
+  "easyocr_live": "UG",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182353_Gt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182353_Gt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182353_Gt_raw.png",
+  "easyocr_live": "(Gt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182351_Uft",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182351_Uft_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182351_Uft_raw.png",
+  "easyocr_live": "Uft",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182346_HGt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182346_HGt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182346_HGt_raw.png",
+  "easyocr_live": "HGt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182344_UGt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182344_UGt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182344_UGt_raw.png",
+  "easyocr_live": "UGt",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182337_U5t",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182337_U5t_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182337_U5t_raw.png",
+  "easyocr_live": "U5t",
+  "truth": "45"
+ },
+ {
+  "id": "text/20261106-182335_Vt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182335_Vt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182335_Vt_raw.png",
+  "easyocr_live": "Vt",
+  "truth": "45"
+ }
+]

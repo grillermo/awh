@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Builds AWH LAN.app, the launcher ./serve runs awh through so awh and its
+# ffmpeg children can reach the camera (see cmd/lan-launcher). Run it once,
+# then approve the Local Network prompt on the Mac mini's screen. Rebuilding
+# the launcher means approving it again, so only rerun it when
+# cmd/lan-launcher changes.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+app="AWH LAN.app"
+probe="${1:-192.168.1.21:554}"
+
+rm -rf "$app"
+mkdir -p "$app/Contents/MacOS"
+go build -o "$app/Contents/MacOS/lan-launcher" ./cmd/lan-launcher
+cat > "$app/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.grillermo.awh.lan-launcher</string>
+<key>CFBundleName</key><string>AWH LAN</string>
+<key>CFBundleExecutable</key><string>lan-launcher</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSUIElement</key><true/>
+<key>NSLocalNetworkUsageDescription</key><string>AWH reads the water heater camera and switches its smart plug on the local network.</string>
+</dict></plist>
+PLIST
+
+# A real signing identity if there is one, ad hoc otherwise.
+identity=$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')
+codesign --force --options runtime --sign "${identity:--}" "$app"
+
+# Launch it through LaunchServices so macOS shows the Local Network prompt;
+# it retries a connection to the camera for a minute while you click Allow.
+echo "Click Allow on the Local Network prompt on the Mac mini's screen..."
+log=$(mktemp)
+open -n --stdout "$log" --stderr "$log" "$app" --args /bin/sh -c \
+  "for i in \$(seq 30); do /usr/bin/nc -z -G 2 ${probe%:*} ${probe#*:} && echo OK && exit 0; sleep 2; done; echo FAILED; exit 1"
+for _ in $(seq 70); do
+  grep -qE '^(OK|FAILED)$' "$log" && break
+  sleep 1
+done
+cat "$log"
+grep -q '^OK$' "$log"

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Builds and runs the Go server, then follows its log in this terminal.
+# Ctrl-C (or closing the tmux pane) stops the server.
+#
+# awh is started through "AWH LAN.app" with `open`, not as a child of this
+# shell: macOS 15 blocks Local Network access ("no route to host" to the
+# camera) for programs started from tmux, and awh is rebuilt on every start,
+# so it can't hold a permission of its own. The launcher app is built and
+# approved once (scripts/make-lan-launcher); a program macOS starts that way
+# passes its Local Network permission to its children: awh and ffmpeg.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+app="$PWD/AWH LAN.app"
+if [[ ! -x "$app/Contents/MacOS/lan-launcher" ]]; then
+  echo "serve: $app is missing; run scripts/make-lan-launcher once (it asks for Local Network access)" >&2
+  exit 1
+fi
+
+go build -o awh ./cmd/awh
+
+mkdir -p logs
+log="$PWD/logs/awh.log"
+pidfile="$PWD/logs/awh.pid"
+
+running() { [[ -s $pidfile ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; }
+
+# Stop an awh left over from an earlier ./serve.
+if running; then
+  kill "$(cat "$pidfile")"
+  for _ in $(seq 50); do running || break; sleep 0.1; done
+fi
+rm -f "$pidfile"
+
+echo "--- ./serve $(date '+%F %T')" >> "$log"
+start=$(wc -c < "$log")
+# The app starts with launchd's environment, so PATH (for ffmpeg) and the
+# settings are set here; .env.awh is read by the child, not passed on argv.
+open -n --stdout "$log" --stderr "$log" "$app" --args /bin/sh -c '
+  cd "$1" && shift
+  echo $$ > logs/awh.pid
+  set -a; . ./.env.awh; set +a
+  export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  exec env GOMEMLIMIT=24MiB HOST="${HOST:-0.0.0.0}" PORT="${PORT:-3060}" ./awh "$@"
+' sh "$PWD" "$@"
+
+for _ in $(seq 50); do [[ -s $pidfile ]] && break; sleep 0.1; done
+if ! running; then
+  echo "serve: awh did not start; last lines of $log:" >&2
+  tail -n 20 "$log" >&2
+  exit 1
+fi
+
+stop() { kill "$(cat "$pidfile")" 2>/dev/null || true; }
+trap 'stop; exit 130' INT
+trap 'stop; exit 143' TERM HUP
+
+tail -c +$((start + 1)) -f "$log" &
+tailpid=$!
+while running; do sleep 1; done
+kill "$tailpid" 2>/dev/null || true
+echo "serve: awh exited; see $log" >&2
+exit 1

@@ -1,0 +1,2 @@
+eval/results/before/mem-active.csv: n=349 over 0.5 h  median=116.0 MB  p95=116.0  max=125.0  slope=-0.82 MB/h
+eval/results/before/mem-idle.csv: n=117 over 0.2 h  median=125.0 MB  p95=125.0  max=125.0  slope=+0.00 MB/h

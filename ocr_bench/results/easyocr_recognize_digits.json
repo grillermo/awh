@@ -1,0 +1,209 @@
+{
+ "model": "easyocr_recognize_digits",
+ "hits": 17,
+ "total": 33,
+ "median_ms": 4.3,
+ "p95_ms": 5.6,
+ "max_ms": 10.1,
+ "load_s": 3.2,
+ "rows": [
+  {
+   "id": "digit/20261106-182954_0",
+   "text": "45",
+   "ms": 4.7,
+   "hit": true
+  },
+  {
+   "id": "digit/20261106-182947_5",
+   "text": "45",
+   "ms": 4.6,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182945_4C",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182929_4S",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "digit/20261106-182844_5",
+   "text": "45",
+   "ms": 4.3,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182838_1G",
+   "text": "45",
+   "ms": 4.1,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182831_uG",
+   "text": "45",
+   "ms": 4.9,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182822_UG",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "digit/20261106-182818_0",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182755_4G",
+   "text": "45",
+   "ms": 4.7,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182714_4C",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182707_UG",
+   "text": "45",
+   "ms": 4.3,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182624_4G",
+   "text": "45",
+   "ms": 4.4,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182548_VS",
+   "text": "45",
+   "ms": 4.5,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182546_UL",
+   "text": "454",
+   "ms": 4.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182540_UC",
+   "text": "4",
+   "ms": 4.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182537_VE",
+   "text": "45",
+   "ms": 4.4,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182513_Vt",
+   "text": "451",
+   "ms": 4.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182504_U5t",
+   "text": "49",
+   "ms": 4.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182501_V5",
+   "text": "459",
+   "ms": 4.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182455_VGt",
+   "text": "459",
+   "ms": 4.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182453_Un",
+   "text": "0",
+   "ms": 4.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182446_UGt",
+   "text": "459",
+   "ms": 4.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182444_Vst",
+   "text": "45",
+   "ms": 4.2,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182420_WSt",
+   "text": "459",
+   "ms": 4.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182413_Ur",
+   "text": "49",
+   "ms": 8.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182355_UG",
+   "text": "4",
+   "ms": 5.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182353_Gt",
+   "text": "4",
+   "ms": 5.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182351_Uft",
+   "text": "09",
+   "ms": 10.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182346_HGt",
+   "text": "4",
+   "ms": 4.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182344_UGt",
+   "text": "0",
+   "ms": 4.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182337_U5t",
+   "text": "45",
+   "ms": 4.9,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182335_Vt",
+   "text": "0",
+   "ms": 4.1,
+   "hit": false
+  }
+ ]
+}
