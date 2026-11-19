@@ -131,6 +131,16 @@ func TestSampleImagesRejectTraversal(t *testing.T) {
 	}
 }
 
+func TestSampleImage404IsHTML(t *testing.T) {
+	_, _, h := newTest(t, true)
+	req := httptest.NewRequest("GET", "/ocr-samples/nope/x.png", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 404 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("%d %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
+
 func TestIndexRendersCropAsJSON(t *testing.T) {
 	_, _, h := newTest(t, true)
 	req := httptest.NewRequest("GET", "/", nil)

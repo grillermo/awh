@@ -522,7 +522,7 @@ func (s *Server) sampleImage(w http.ResponseWriter, r *http.Request) {
 	kind, file := r.PathValue("kind"), r.PathValue("file")
 	if (kind != "text" && kind != "digit" && kind != "empty") || !strings.HasSuffix(file, ".png") ||
 		strings.Contains(file, "..") {
-		http.NotFound(w, r)
+		notFoundHTML(w)
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
@@ -533,4 +533,11 @@ func (s *Server) reportError(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 64<<10))
 	log.Printf("[report-error] %s", body)
 	writeJSON(w, 200, obj{"ok": true})
+}
+
+// notFoundHTML mimics Flask's HTML 404 page, which is what the Python server sends.
+func notFoundHTML(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(404)
+	io.WriteString(w, "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>\n")
 }
