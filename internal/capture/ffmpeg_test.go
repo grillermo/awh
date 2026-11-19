@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,4 +69,31 @@ func TestBadInput(t *testing.T) {
 	if _, _, err := c.Size(t.Context()); err == nil {
 		t.Fatal("want error")
 	}
+}
+
+func TestErrorsNeverCarryCredentials(t *testing.T) {
+	const url = "rtsp://admin:s3cret@127.0.0.1:1/stream1"
+	c := Camera{URL: url, Timeout: 5 * time.Second}
+	check := func(what string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s: want error", what)
+		}
+		if strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "admin:") {
+			t.Errorf("%s leaks credentials: %v", what, err)
+		}
+	}
+	// A fake command that echoes the URL and another credentialed URL on stderr.
+	_, err := c.run(t.Context(), "sh", "-c", `echo "Error opening `+url+`; also rtsp://u:p@other/x" >&2; exit 1`)
+	check("fake command", err)
+	if !strings.Contains(err.Error(), "://***@other/x") {
+		t.Errorf("generic URL not redacted: %v", err)
+	}
+	// And through the real ffprobe/ffmpeg paths against a closed port.
+	_, _, err = c.Size(t.Context())
+	check("Size", err)
+	_, err = c.FullJPEG(t.Context())
+	check("FullJPEG", err)
+	_, err = c.Crop(t.Context(), vision.Rect{W: 4, H: 4})
+	check("Crop", err)
 }

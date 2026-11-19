@@ -7,8 +7,10 @@ package capture
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,6 +23,17 @@ type Camera struct {
 	Timeout time.Duration
 }
 
+var credentials = regexp.MustCompile(`://[^@/\s]*@`)
+
+// redact removes camera credentials from text that ends up in errors, logs and
+// HTTP responses: the camera URL itself and any user:pass@ in a URL.
+func (c Camera) redact(s string) string {
+	if c.URL != "" {
+		s = strings.ReplaceAll(s, c.URL, "***")
+	}
+	return credentials.ReplaceAllString(s, "://***@")
+}
+
 func (c Camera) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
@@ -29,7 +42,7 @@ func (c Camera) run(ctx context.Context, name string, args ...string) ([]byte, e
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(stderr.String()))
+		return nil, errors.New(c.redact(fmt.Sprintf("%s: %v: %s", name, err, strings.TrimSpace(stderr.String()))))
 	}
 	return out, nil
 }
@@ -54,7 +67,7 @@ func (c Camera) Size(ctx context.Context) (int, int, error) {
 	}
 	var w, h int
 	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d,%d", &w, &h); err != nil || w == 0 || h == 0 {
-		return 0, 0, fmt.Errorf("ffprobe: unexpected size %q", out)
+		return 0, 0, errors.New(c.redact(fmt.Sprintf("ffprobe: unexpected size %q", out)))
 	}
 	return w, h, nil
 }
