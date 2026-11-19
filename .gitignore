@@ -7,3 +7,4 @@ ocr-examples.html
 # Deploy config (see ./deploy)
 .env
 ios/AWH/Config/Local.xcconfig
+.worktrees/
