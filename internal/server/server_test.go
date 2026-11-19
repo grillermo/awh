@@ -98,15 +98,19 @@ func TestUpdateCropMovesOneEdgePersistsAndClearsTheFrame(t *testing.T) {
 
 func TestValidation(t *testing.T) {
 	_, _, h := newTest(t, true)
-	for _, c := range []struct{ method, path, body string }{
-		{"POST", "/api/save-view", `{"view":{"scale":1}}`},
-		{"POST", "/api/save-crop", `{"crop":[1,2]}`},
-		{"POST", "/api/ocr-samples/selection", `{"select":"x"}`},
-		{"GET", "/api/display?display_crop=1,2,3", ""},
-		{"GET", "/api/display?display_crop=0.7,0.5,0.6,0.6", ""},
+	// Python answers 400 for the body endpoints and 500 for display_crop.
+	for _, c := range []struct {
+		method, path, body string
+		status             int
+	}{
+		{"POST", "/api/save-view", `{"view":{"scale":1}}`, 400},
+		{"POST", "/api/save-crop", `{"crop":[1,2]}`, 400},
+		{"POST", "/api/ocr-samples/selection", `{"select":"x"}`, 400},
+		{"GET", "/api/display?display_crop=1,2,3", "", 500},
+		{"GET", "/api/display?display_crop=0.7,0.5,0.6,0.6", "", 500},
 	} {
-		if code, out := do(t, h, c.method, c.path, c.body); code != 400 && code != 500 || out["ok"] != false {
-			t.Errorf("%s %s: %d %v", c.method, c.path, code, out)
+		if code, out := do(t, h, c.method, c.path, c.body); code != c.status || out["ok"] != false {
+			t.Errorf("%s %s: got %d %v, want %d", c.method, c.path, code, out, c.status)
 		}
 	}
 }
