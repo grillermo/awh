@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# PYTHON overrides the interpreter (a git worktree has no python_env of its own).
+py="${PYTHON:-python_env/bin/python}"
+src=$("$py" -c "import rapidocr, os; print(os.path.join(os.path.dirname(rapidocr.__file__), \"models\", \"PP-OCRv6_rec_small.onnx\"))")
+mkdir -p models
+cp "$src" models/PP-OCRv6_rec_small.onnx
+"$py" - <<"PYEOF"
+import json, onnxruntime as ort
+s = ort.InferenceSession("models/PP-OCRv6_rec_small.onnx", providers=["CPUExecutionProvider"])
+chars = s.get_modelmeta().custom_metadata_map["character"].splitlines()
+json.dump(chars, open("models/ppocrv6_rec_keys.json", "w"), ensure_ascii=False)
+print(len(chars), "characters")
+PYEOF
+shasum -a 256 models/PP-OCRv6_rec_small.onnx
