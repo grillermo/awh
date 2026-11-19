@@ -213,13 +213,19 @@ func (c *Client) Reset(ctx context.Context) error {
 		return err
 	}
 	log.Printf("[tapo] Turning off %s", c.Base)
+	// After a handshake succeeded, an error on the off call does not prove the
+	// request was not delivered (timeout, lost response), so the plug may be
+	// off: always go on to the turn-on path.
+	var offErr error
 	if _, err := s.call(ctx, setOn(false)); err != nil {
-		return err
-	}
-	log.Printf("[tapo] Waiting %s", c.Wait)
-	select {
-	case <-time.After(c.Wait):
-	case <-ctx.Done():
+		offErr = fmt.Errorf("turn off: %w", err)
+		log.Printf("[tapo] %v; turning on anyway", offErr)
+	} else {
+		log.Printf("[tapo] Waiting %s", c.Wait)
+		select {
+		case <-time.After(c.Wait):
+		case <-ctx.Done():
+		}
 	}
 	// Always try to turn it back on, even if ctx was cancelled during the wait.
 	onCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -229,11 +235,14 @@ func (c *Client) Reset(ctx context.Context) error {
 		// The session may have expired: retry once with a fresh handshake.
 		s2, err2 := c.handshake(onCtx)
 		if err2 != nil {
-			return fmt.Errorf("turn on: %v; re-handshake: %w", err, err2)
+			return errors.Join(offErr, fmt.Errorf("turn on: %v; re-handshake: %w", err, err2))
 		}
 		if _, err := s2.call(onCtx, setOn(true)); err != nil {
-			return err
+			return errors.Join(offErr, err)
 		}
+	}
+	if offErr != nil {
+		return fmt.Errorf("%w (plug was turned on again)", offErr)
 	}
 	log.Printf("[tapo] Reset complete")
 	return nil

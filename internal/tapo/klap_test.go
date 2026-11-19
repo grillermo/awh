@@ -2,6 +2,7 @@ package tapo
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeDevice struct {
@@ -19,6 +21,9 @@ type fakeDevice struct {
 	v1            bool
 	on            bool
 	calls         []string
+	// offFault, when set, runs after a set_device_info(false) was applied
+	// instead of answering, simulating a lost response.
+	offFault func(w http.ResponseWriter, r *http.Request)
 }
 
 func (d *fakeDevice) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +66,10 @@ func (d *fakeDevice) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		d.calls = append(d.calls, req.Method+":"+strconv.FormatBool(req.Params.DeviceOn))
 		if req.Method == "set_device_info" {
 			d.on = req.Params.DeviceOn
+		}
+		if req.Method == "set_device_info" && !req.Params.DeviceOn && d.offFault != nil {
+			d.offFault(w, r)
+			return
 		}
 		resp, _ := json.Marshal(map[string]any{"error_code": 0, "result": map[string]any{"device_on": d.on, "model": "P100"}})
 		ct := c.encrypt(resp, int32(seq))
@@ -113,5 +122,60 @@ func TestEmptyCredentialsAreReportedAsSuch(t *testing.T) {
 	_, err := c.Info(t.Context())
 	if err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestOffCallFailingAfterDeliveryStillTurnsOn(t *testing.T) {
+	for name, tc := range map[string]struct {
+		fault func(w http.ResponseWriter, r *http.Request)
+		ctx   func() (context.Context, context.CancelFunc)
+	}{
+		"500 after applying": {
+			fault: func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) },
+			ctx:   func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+		},
+		"timeout after applying": {
+			fault: func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() },
+			ctx: func() (context.Context, context.CancelFunc) {
+				return context.WithTimeout(context.Background(), 300*time.Millisecond)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dev := &fakeDevice{auth: authHash("me@example.com", "pw"), on: true, offFault: tc.fault}
+			srv := httptest.NewServer(dev)
+			defer srv.Close()
+			c := &Client{Base: srv.URL, Email: "me@example.com", Password: "pw", Wait: 0}
+			ctx, cancel := tc.ctx()
+			defer cancel()
+			err := c.Reset(ctx)
+			if err == nil || !strings.Contains(err.Error(), "turn off") {
+				t.Fatalf("want a turn-off error, got %v", err)
+			}
+			got := strings.Join(dev.calls, ",")
+			if got != "set_device_info:false,set_device_info:true" || !dev.on {
+				t.Fatalf("calls %s, on=%v", got, dev.on)
+			}
+		})
+	}
+}
+
+func TestHandshakeFailureSendsNothing(t *testing.T) {
+	dev := &fakeDevice{auth: authHash("me@example.com", "pw"), on: true}
+	srv := httptest.NewServer(dev)
+	defer srv.Close()
+	c := &Client{Base: srv.URL, Email: "me@example.com", Password: "wrong"}
+	if err := c.Reset(t.Context()); err == nil || len(dev.calls) != 0 {
+		t.Fatalf("err %v calls %v", err, dev.calls)
+	}
+}
+
+func TestOnFailureIsReported(t *testing.T) {
+	dev := &fakeDevice{auth: authHash("me@example.com", "pw"), on: true}
+	srv := httptest.NewServer(dev)
+	srv.Close() // everything after the handshake fails
+	c := &Client{Base: srv.URL, Email: "me@example.com", Password: "pw"}
+	if err := c.Reset(t.Context()); err == nil {
+		t.Fatal("want an error")
 	}
 }
