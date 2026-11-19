@@ -17,7 +17,7 @@ Date: 2026-11-19. "Before" is the unmodified Python server, "after" is the Go bi
 
 Go OCR latency by onnxruntime thread count (Task 8): 1 thread 28 ms, 2 threads 16.2 ms, 4 threads 9.9 ms, 8 threads 13.6 ms. The shipped setting is 1 thread, to keep memory and CPU low.
 
-Note: Python idle (125 MB) is higher than its active median (116 MB). The Python process measured for the idle run was not the same age/state as the active one; both are copied as measured.
+Note: Python idle (125 MB) is higher than its active median (116 MB). Both are copied as measured; the cause was not investigated.
 
 ## 2. Leak note
 
