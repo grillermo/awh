@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -33,6 +34,14 @@ func cat(parts ...[]byte) []byte { return bytes.Join(parts, nil) }
 func authHash(email, password string) []byte {
 	e, p := sha1.Sum([]byte(email)), sha1.Sum([]byte(password))
 	h := sha256.Sum256(cat(e[:], p[:]))
+	return h[:]
+}
+
+// authHashV1 is the older KLAP seed, md5(md5(email) + md5(password)), which
+// some firmware still uses.
+func authHashV1(email, password string) []byte {
+	e, p := md5.Sum([]byte(email)), md5.Sum([]byte(password))
+	h := md5.Sum(cat(e[:], p[:]))
 	return h[:]
 }
 
@@ -111,7 +120,9 @@ func (c *Client) post(ctx context.Context, path, cookie string, body []byte) ([]
 }
 
 func (c *Client) handshake(ctx context.Context) (*session, error) {
-	auth := authHash(c.Email, c.Password)
+	if c.Email == "" || c.Password == "" {
+		return nil, errors.New("tapo: email or password is empty (check TAPO_EMAIL / TAPO_PASSWORD)")
+	}
 	local := make([]byte, 16)
 	rand.Read(local)
 	body, resp, err := c.post(ctx, "/app/handshake1", "", local)
@@ -122,8 +133,16 @@ func (c *Client) handshake(ctx context.Context) (*session, error) {
 		return nil, fmt.Errorf("tapo: handshake1 answered %d bytes", len(body))
 	}
 	remote := body[:16]
-	want := sha256.Sum256(cat(local, remote, auth))
-	if !bytes.Equal(body[16:48], want[:]) {
+	// KLAP v2 (newer firmware): sha256(local + remote + auth).
+	// KLAP v1: sha256(local + auth) and handshake2 = sha256(remote + auth).
+	var auth []byte
+	v1 := false
+	if want := sha256.Sum256(cat(local, remote, authHash(c.Email, c.Password))); bytes.Equal(body[16:48], want[:]) {
+		auth = authHash(c.Email, c.Password)
+	} else if want := sha256.Sum256(cat(local, authHashV1(c.Email, c.Password))); bytes.Equal(body[16:48], want[:]) {
+		auth, v1 = authHashV1(c.Email, c.Password), true
+	}
+	if auth == nil {
 		return nil, errors.New("tapo: handshake1 hash mismatch (wrong email or password?)")
 	}
 	cookie := ""
@@ -133,6 +152,9 @@ func (c *Client) handshake(ctx context.Context) (*session, error) {
 		}
 	}
 	h2 := sha256.Sum256(cat(remote, local, auth))
+	if v1 {
+		h2 = sha256.Sum256(cat(remote, auth))
+	}
 	if _, _, err := c.post(ctx, "/app/handshake2", cookie, h2[:]); err != nil {
 		return nil, err
 	}

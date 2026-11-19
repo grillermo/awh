@@ -16,6 +16,7 @@ import (
 type fakeDevice struct {
 	auth          []byte
 	local, remote []byte
+	v1            bool
 	on            bool
 	calls         []string
 }
@@ -27,9 +28,15 @@ func (d *fakeDevice) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		d.local, d.remote = body, bytes.Repeat([]byte{7}, 16)
 		http.SetCookie(w, &http.Cookie{Name: "TP_SESSIONID", Value: "abc"})
 		h := sha256.Sum256(cat(d.local, d.remote, d.auth))
+		if d.v1 {
+			h = sha256.Sum256(cat(d.local, d.auth))
+		}
 		w.Write(cat(d.remote, h[:]))
 	case "/app/handshake2":
 		want := sha256.Sum256(cat(d.remote, d.local, d.auth))
+		if d.v1 {
+			want = sha256.Sum256(cat(d.remote, d.auth))
+		}
 		if !bytes.Equal(body, want[:]) {
 			w.WriteHeader(403)
 		}
@@ -88,5 +95,23 @@ func TestWrongPasswordFailsTheHandshake(t *testing.T) {
 	c := &Client{Base: srv.URL, Email: "me@example.com", Password: "nope"}
 	if _, err := c.Info(t.Context()); err == nil {
 		t.Fatal("want an auth error")
+	}
+}
+
+func TestKlapV1Handshake(t *testing.T) {
+	dev := &fakeDevice{auth: authHashV1("me@example.com", "pw"), v1: true, on: true}
+	srv := httptest.NewServer(dev)
+	defer srv.Close()
+	c := &Client{Base: srv.URL, Email: "me@example.com", Password: "pw"}
+	if info, err := c.Info(t.Context()); err != nil || info["model"] != "P100" {
+		t.Fatalf("info %v %v", info, err)
+	}
+}
+
+func TestEmptyCredentialsAreReportedAsSuch(t *testing.T) {
+	c := &Client{Base: "http://127.0.0.1:1"}
+	_, err := c.Info(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("got %v", err)
 	}
 }

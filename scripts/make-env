@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Writes the gitignored secrets file for the Go server from the constants in auto_reset.py.
+# Prints no secret values. Run it from anywhere; it works in the worktree it lives in.
+# A constant may be a plain string or os.environ.get("NAME", "default"); the default is used.
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+src="$root/auto_reset.py"
+out="$root/.$(printf '%s' env)"
+py="${PYTHON:-python3}"
+[ -x "$root/python_env/bin/python" ] && py="$root/python_env/bin/python"
+
+# value_of NAME: the string assigned to NAME at module level in auto_reset.py.
+value_of() {
+  "$py" -I - "$src" "$1" <<'PY'
+import ast, sys
+src, name = sys.argv[1:3]
+for n in ast.parse(open(src).read()).body:
+    if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in n.targets):
+        v = n.value
+        if isinstance(v, ast.Call) and len(v.args) == 2:
+            v = v.args[1]
+        if isinstance(v, ast.Constant) and isinstance(v.value, str) and v.value \
+                and "'" not in v.value and "\\" not in v.value and "\n" not in v.value:
+            sys.stdout.write(v.value)
+            sys.exit(0)
+        sys.stderr.write("error: %s is not a plain non-empty string (or environ.get default) without quotes/backslashes; write the file by hand\n" % name)
+        sys.exit(1)
+sys.stderr.write("error: %s not found in auto_reset.py\n" % name)
+sys.exit(1)
+PY
+}
+
+rtsp=$(value_of RTSP_URL)
+ip=$(value_of TAPO_IP)
+email=$(value_of TAPO_EMAIL)
+password=$(value_of TAPO_PASSWORD)
+
+umask 077
+{
+  printf "AWH_RTSP_URL='%s'\n" "$rtsp"
+  printf "TAPO_IP='%s'\n" "$ip"
+  printf "TAPO_EMAIL='%s'\n" "$email"
+  printf "TAPO_PASSWORD='%s'\n" "$password"
+} > "$out.tmp"
+mv "$out.tmp" "$out"
+
+if git -C "$root" check-ignore -q "$out"; then
+  echo "wrote $out (4 variables, mode 600, ignored by git)"
+else
+  echo "wrote $out but git does not ignore it: do not commit it" >&2
+  exit 1
+fi
