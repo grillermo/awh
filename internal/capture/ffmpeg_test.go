@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,4 +97,34 @@ func TestErrorsNeverCarryCredentials(t *testing.T) {
 	check("FullJPEG", err)
 	_, err = c.Crop(t.Context(), vision.Rect{W: 4, H: 4})
 	check("Crop", err)
+}
+
+func TestConcurrentChildrenAreBounded(t *testing.T) {
+	c := Camera{URL: "x", Timeout: 10 * time.Second}
+	var wg sync.WaitGroup
+	for range maxChildren {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.run(t.Context(), "sleep", "1")
+		}()
+	}
+	for len(slots) < maxChildren {
+		time.Sleep(5 * time.Millisecond)
+	}
+	// All slots are taken: another run waits, then fails with a clear error.
+	waiter := Camera{URL: "x", Timeout: 150 * time.Millisecond}
+	start := time.Now()
+	_, err := waiter.run(t.Context(), "true")
+	if err == nil || !strings.Contains(err.Error(), "too many ffmpeg processes") {
+		t.Fatalf("got %v", err)
+	}
+	if time.Since(start) < 100*time.Millisecond {
+		t.Fatal("did not wait for a slot")
+	}
+	wg.Wait()
+	// Slots are released afterwards.
+	if _, err := waiter.run(t.Context(), "true"); err != nil {
+		t.Fatal(err)
+	}
 }

@@ -34,9 +34,22 @@ func (c Camera) redact(s string) string {
 	return credentials.ReplaceAllString(s, "://***@")
 }
 
+// maxChildren bounds concurrent ffmpeg/ffprobe processes: the live loop,
+// /api/display and the index page can all want one at once, and each decodes
+// from the camera.
+const maxChildren = 2
+
+var slots = make(chan struct{}, maxChildren)
+
 func (c Camera) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
+	select {
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("%s: too many ffmpeg processes running (%d): gave up waiting: %w", name, maxChildren, ctx.Err())
+	}
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stderr = &stderr
