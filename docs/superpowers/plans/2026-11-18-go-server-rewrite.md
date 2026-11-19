@@ -27,7 +27,7 @@ Floor measurements in the same `python_env`:
 
 **Expected after:** Go runtime + HTTP + SQLite ≈ 10–15 MB, plus onnxruntime + model ≈ 32 MB, so about **45–55 MB steady**, against 116 MB. Camera decoding moves into a short-lived `ffmpeg` child that exits after each frame, so its memory is returned every time and never piles up in the server.
 
-**Leak suspicion:** 116 MB is about 40 MB above the sum of the parts, and the peak was 189 MB. Task 1 records a 48-hour footprint time series of the Python server under real polling. If it climbs steadily, that is a leak. Task 1 ends with a decision point: a Python fix might be enough, and that call is the user's.
+**Leak suspicion:** 116 MB is about 40 MB above the sum of the parts, and the peak was 189 MB. The user chose **not to run any day-long polling**, so the plan doesn't try to prove or rule out a slow leak. The 30-minute active samples report a slope as a rough signal only. The Go design removes the likely suspects anyway: cv2 opening a new `VideoCapture` and decoding a full 1440p frame in-process every loop, and numpy temporaries. Every measurement in this plan runs for 30 minutes or less, except the 1-hour shadow run in Task 16.
 
 **Architecture:** A single Go module at the repo root. `cmd/awh` is the server, and `internal/*` packages port each Python module one-to-one: `reading`, `vision`, `ocr`, `capture`, `store`, `samples`, `tapo`, `server`. OCR runs the **same ONNX file** RapidOCR uses (`PP-OCRv6_rec_small.onnx`) through onnxruntime's C library via `github.com/yalue/onnxruntime_go`. Preprocessing and CTC decoding are ported line for line from `rapidocr/ch_ppocr_rec`. Frames come from `ffmpeg`/`ffprobe` subprocesses; the live loop asks ffmpeg for only the display crop (`format=bgr24,crop=…`), so the Go heap never holds a full 1440p frame. Python stays in the repo, and runnable, until a week after cutover.
 
@@ -47,9 +47,8 @@ Floor measurements in the same `python_env`:
 |---|---|---|---|
 | E1 OCR offline parity | ~274 `ocr_samples/*/*_raw.png` + 5 error crops from `errors.sqlite3` + 33 truth-labelled frames (`ocr_bench/dataset.json`) | text, score and `classify()` kind per image | kind agrees on **100%**; **0** images where Go says `error` and Python doesn't; text agrees ≥ 99% with every mismatch listed; \|Δscore\| p99 ≤ 0.01; truth set 33/33 on both |
 | E2 tensor parity | 2 fixture crops | preprocessed `1×3×48×W` tensor | max \|Δ\| ≤ 2/255·2 (≈ 1 grey level after normalisation) |
-| E3 OCR live parity | crops the Go shadow server saves every 30 s over 24 h, including night | same as E1, run offline through both | same as E1 |
-| E4 live A/B | Python `:3060` and Go `:3061` polled together every 2 s for 24 h | `ocr_kind` per poll | ≥ 98% agreement; every Go-only `error` reviewed by hand |
-| E5 memory | each server, idle 10 min and active (poller at live.html's ~1 s cadence) 30 min, then 24 h active | footprint of the process **plus its children** | Go active median ≤ 60 MB, idle ≤ 50 MB, 24 h slope ≈ 0. **Stop and report** if the Go active median exceeds 80 MB |
+| E3 OCR live parity | crops the Go shadow server saves every 10 s during a 1-hour run (~360 crops); E1's ~274 production samples already span day and night | same as E1, run offline through both | same as E1 |
+| E5 memory | each server, idle 10 min and active (poller at live.html's ~1 s cadence) 30 min | footprint of the process **plus its children** | Go active median ≤ 60 MB, idle ≤ 50 MB, active max ≤ 80 MB. **Stop and report** if the Go active median exceeds 80 MB |
 | E6 latency | E1 set | OCR ms per image (after 2 warm-ups); cold start to first `/last_frame` 200 | Go OCR median ≤ 2× Python's and < 50 ms |
 | E7 HTTP contract | every read-only endpoint on both servers | status codes and JSON key sets | identical |
 
@@ -84,7 +83,7 @@ scripts/fetch-model
 serve-go, serve-python
 eval/memwatch.sh, eval/mem_summary.py, eval/poll.sh, eval/startup.sh
 eval/build_manifest.py, eval/ocr_reference.py, eval/compare_ocr.py
-eval/ab_poll.py, eval/http_contract.sh, eval/dump_fixtures.py
+eval/http_contract.sh, eval/dump_fixtures.py
 eval/REPORT.md
 ```
 
@@ -133,7 +132,7 @@ Expected: `ocr_bench/python_env` is not listed.
 
 ---
 
-### Task 1: "Before" memory baseline and leak check (Python, untouched)
+### Task 1: "Before" memory baseline (Python, untouched)
 
 **Files:**
 - Create: `eval/memwatch.sh`, `eval/mem_summary.py`, `eval/poll.sh`, `eval/startup.sh`
@@ -233,17 +232,11 @@ chmod +x eval/*.sh && shellcheck eval/*.sh
 git add eval && git commit -m "eval: memory sampler, poller, startup timer"
 ```
 
-- [ ] **Step 6: Start the 48 h leak watch on the production server** (runs in the background, does not touch the server)
+- [ ] **Step 6: Idle and active samples of the production server** (it is only observed, never restarted; the active sample drives the live loop the way the kiosk does)
 
 ```bash
 mkdir -p eval/results/before
 PID=$(pgrep -f '^awh')   # Python's setproctitle name; the Go binary runs as ./awh
-nohup eval/memwatch.sh "$PID" 172800 60 eval/results/before/mem-48h.csv >/dev/null 2>&1 &
-```
-
-- [ ] **Step 7: Idle and active samples** (the active one drives the live loop, the same thing the kiosk does)
-
-```bash
 eval/memwatch.sh "$PID" 600 5 eval/results/before/mem-idle.csv
 eval/poll.sh 3060 1800 & eval/memwatch.sh "$PID" 1800 5 eval/results/before/mem-active.csv; wait
 python_env/bin/python eval/mem_summary.py eval/results/before/mem-*.csv | tee eval/results/before/mem-summary.txt
@@ -251,21 +244,19 @@ python_env/bin/python eval/mem_summary.py eval/results/before/mem-*.csv | tee ev
 
 Skip the idle sample if someone has the kiosk open; `/last_frame` requests in the server log show that.
 
-- [ ] **Step 8: Cold start (a second Python instance on a spare port, killed at the end)**
+Also record the server's current and peak footprint since it started; the peak is the only long-run evidence available without day-long polling:
+
+```bash
+vmmap -summary "$PID" | grep 'Physical footprint' | tee eval/results/before/vmmap.txt
+```
+
+- [ ] **Step 7: Cold start (a second Python instance on a spare port, killed at the end)**
 
 ```bash
 eval/startup.sh 3062 -- env HOST=127.0.0.1 PORT=3062 python_env/bin/python app.py | tee eval/results/before/startup.txt
 ```
 
-- [ ] **Step 9: Leak decision point, after 48 h**
-
-```bash
-python_env/bin/python eval/mem_summary.py eval/results/before/mem-48h.csv
-```
-
-If `slope` is above **+0.5 MB/h** with steady polling, it is a leak. Report the number to the user and ask whether to (a) keep going with Go, which removes the suspects (cv2's per-frame `VideoCapture`, numpy temporaries), or (b) first try a Python fix. Tasks 2–8 do not depend on this answer and can run while waiting.
-
-- [ ] **Step 10: Commit the results**
+- [ ] **Step 8: Commit the results**
 
 ```bash
 git add eval/results/before && git commit -m "eval: before memory baseline (Python server)"
@@ -3026,7 +3017,7 @@ type Resetter interface {
 type Options struct {
 	DryRun     bool   // never touch the plug
 	SamplesDir string // where /ocr-samples/ images are served from
-	ShadowDir  string // when set, record a crop + reading every 30 s (eval E3)
+	ShadowDir  string // when set, record a crop + reading every 10 s (eval E3)
 }
 
 type frame struct{ b64, text, kind string }
@@ -3060,7 +3051,7 @@ func New(cam Camera, ocr Reader, reset Resetter, st *store.Store, col *samples.C
 	}
 	s := &Server{cam: cam, ocr: ocr, reset: reset, store: st, samples: col, opts: opts, pages: pages, crop: st.Crop()}
 	if opts.ShadowDir != "" {
-		s.shadow = newShadowRecorder(opts.ShadowDir, 30*time.Second)
+		s.shadow = newShadowRecorder(opts.ShadowDir, 10*time.Second)
 	}
 	return s, nil
 }
@@ -3548,7 +3539,7 @@ func main() {
 	ortLib := flag.String("ort-lib", "/opt/homebrew/lib/libonnxruntime.dylib", "")
 	threads := flag.Int("ocr-threads", 1, "onnxruntime intra-op threads")
 	dryRun := flag.Bool("dry-run", false, "never switch the Tapo plug")
-	shadowDir := flag.String("shadow-dir", "", "record a crop + reading every 30 s here (eval)")
+	shadowDir := flag.String("shadow-dir", "", "record a crop + reading every 10 s here (eval)")
 	flag.Parse()
 
 	rtsp := os.Getenv("AWH_RTSP_URL")
@@ -3642,98 +3633,67 @@ git add cmd/awh serve-go serve-python && git commit -m "feat(go): awh server bin
 
 ---
 
-### Task 16: 24-hour shadow run (E3, E4, E5)
+### Task 16: 1-hour shadow run (E3, E5, E6)
 
-Python keeps serving production on `:3060`. Go runs beside it on `:3061`, dry run, with its own DB copy and samples folder.
+Python keeps serving production on `:3060`. Go runs beside it on `:3061` for one hour: dry run, its own DB copy and samples folder, saving a crop every 10 s. Nothing here polls for longer than 30 minutes at a time.
 
-**Files:**
-- Create: `eval/ab_poll.py`
-
-- [ ] **Step 1: Write `eval/ab_poll.py`**
-
-```python
-#!/usr/bin/env python3
-"""usage: ab_poll.py <seconds> <out.csv> -- polls :3060 (Python) and :3060+1 (Go) every 2 s."""
-import csv
-import json
-import sys
-import time
-import urllib.request
-
-secs, out = int(sys.argv[1]), sys.argv[2]
-
-
-def read(port):
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/last_frame", timeout=20) as r:
-            d = json.load(r)
-        return d.get("ocr_kind", ""), d.get("ocr_text", "")
-    except Exception as exc:  # 503 before the first frame, timeouts
-        return "unavailable", type(exc).__name__
-
-
-with open(out, "w", newline="") as fh:
-    w = csv.writer(fh)
-    w.writerow(["epoch", "py_kind", "py_text", "go_kind", "go_text"])
-    end = time.time() + secs
-    while time.time() < end:
-        w.writerow([int(time.time()), *read(3060), *read(3061)])
-        fh.flush()
-        time.sleep(2)
-
-rows = list(csv.DictReader(open(out)))
-both = [r for r in rows if "unavailable" not in (r["py_kind"], r["go_kind"])]
-agree = sum(r["py_kind"] == r["go_kind"] for r in both)
-go_only = [r for r in both if r["go_kind"] == "error" and r["py_kind"] != "error"]
-print(f"{len(both)} paired polls, kind agreement {agree / max(1, len(both)):.2%}, "
-      f"Go-only errors {len(go_only)}")
-for r in go_only:
-    print("  go-only error:", r)
-```
-
-- [ ] **Step 2: Start the shadow server and the three watchers** (each in its own tmux window, so they survive the SSH session)
+- [ ] **Step 1: Start the shadow server** (in tmux, so it survives the SSH session)
 
 ```bash
 tmux new-session -d -s awh-shadow 'PORT=3061 ./serve-go -dry-run -db eval/shadow/awh.sqlite3 -samples eval/shadow/ocr_samples -shadow-dir eval/shadow 2>&1 | tee eval/shadow/server.log'
 sleep 10
 GOPID=$(pgrep -f '^\./awh')   # the Python server is "awh" without ./
-tmux new-window -t awh-shadow "python_env/bin/python eval/ab_poll.py 86400 eval/results/after/ab.csv | tee eval/results/after/ab.txt"
-tmux new-window -t awh-shadow "eval/memwatch.sh $GOPID 86400 60 eval/results/after/mem-24h.csv"
+echo "$GOPID"
 ```
 
-`ab_poll.py` polling both servers keeps both live loops running, so the 24 h memory series is under active load.
+Expected: one pid.
 
-- [ ] **Step 3: After 24 h, idle and 30-min active samples for Go** (stop `ab_poll` first, or the idle sample isn't idle)
+- [ ] **Step 2: Idle sample (10 min)** — nothing polls `:3061`, so the live loop sleeps
 
 ```bash
+mkdir -p eval/results/after
 eval/memwatch.sh "$GOPID" 600 5 eval/results/after/mem-idle.csv
+```
+
+- [ ] **Step 3: Active sample (30 min)** — the poller keeps the live loop running, and the shadow recorder saves a crop every 10 s
+
+```bash
 eval/poll.sh 3061 1800 & eval/memwatch.sh "$GOPID" 1800 5 eval/results/after/mem-active.csv; wait
 python_env/bin/python eval/mem_summary.py eval/results/after/mem-*.csv | tee eval/results/after/mem-summary.txt
 ```
 
-- [ ] **Step 4: E3, live crops through both OCRs**
+- [ ] **Step 4: Top up the live crops (another 20 min of polling, no memory sampling)**, so E3 gets ~300 crops in all, then stop the shadow server
+
+```bash
+eval/poll.sh 3061 1200
+tmux kill-session -t awh-shadow
+wc -l eval/shadow/manifest.jsonl
+```
+
+Expected: about 300 lines (1800 s + 1200 s at one crop per 10 s).
+
+- [ ] **Step 5: E3, live crops through both OCRs**
 
 ```bash
 python_env/bin/python eval/ocr_reference.py eval/shadow/manifest.jsonl eval/results/before/ocr-shadow.jsonl
 ./awh-ocr-eval -manifest eval/shadow/manifest.jsonl -out eval/results/after/ocr-shadow.jsonl
-python_env/bin/python eval/compare_ocr.py eval/shadow/manifest.jsonl eval/results/before/ocr-shadow.jsonl eval/results/after/ocr-shadow.jsonl "E3 live OCR parity (24 h of shadow crops)" | tee eval/results/after/e3.md
+python_env/bin/python eval/compare_ocr.py eval/shadow/manifest.jsonl eval/results/before/ocr-shadow.jsonl eval/results/after/ocr-shadow.jsonl "E3 live OCR parity (1 h of shadow crops)" | tee eval/results/after/e3.md
 ```
 
-Expected: about 2,880 crops, every gate PASS.
+Expected: every gate PASS. This run covers only one hour of light. E1's production samples cover dark and odd frames, so read E3 as "the live capture path (ffmpeg instead of cv2) feeds OCR the same way" and not as a day/night test.
 
-- [ ] **Step 5: Cold start**
+- [ ] **Step 6: Cold start**
 
 ```bash
-tmux kill-session -t awh-shadow
 eval/startup.sh 3061 -- env PORT=3061 ./serve-go -dry-run -db eval/shadow/awh.sqlite3 -samples eval/shadow/ocr_samples | tee eval/results/after/startup.txt
 ```
 
-- [ ] **Step 6: Check the gates and commit the results**
+- [ ] **Step 7: Check the gates and commit the results**
 
 Compare against the table in "Evaluation design". If a gate fails, stop and report to the user with the numbers.
 
 ```bash
-git add eval/ab_poll.py eval/results/after && git commit -m "eval: 24 h shadow run results (after)"
+git add eval/results/after && git commit -m "eval: 1 h shadow run results (after)"
 ```
 
 ---
@@ -3765,9 +3725,9 @@ git add eval/results/after/http.txt && git commit -m "eval: HTTP contract matche
 
 - [ ] **Step 1: Write `eval/REPORT.md`** from the result files, with these sections in this order, numbers copied from the files named:
 
-1. **Summary**: one table, Python vs Go: active median and p95 footprint, idle footprint, 24 h slope, peak, cold start, OCR median/p95 ms (from `mem-summary.txt` ×2, `startup.txt` ×2, `e1.md`).
-2. **Leak finding**: the 48 h Python slope (`before/mem-48h.csv`) and what it showed.
-3. **OCR parity**: paste `e1.md` and `e3.md` whole, then the E4 line from `ab.txt`.
+1. **Summary**: one table, Python vs Go: active median and p95 footprint, idle footprint, active max, 30-min slope (rough), Python peak since start (`before/vmmap.txt`), cold start, OCR median/p95 ms (from `mem-summary.txt` ×2, `startup.txt` ×2, `e1.md`).
+2. **Leak note**: Python 30-min slope and lifetime peak vs Go 30-min slope; say plainly that a slow leak was not tested (no day-long polling, by choice).
+3. **OCR parity**: paste `e1.md` and `e3.md` whole.
 4. **HTTP contract**: E7 result.
 5. **Setup**: onnxruntime versions (Python and Homebrew), model SHA-256 (from `scripts/fetch-model`), frame size, Go version, date.
 
@@ -3806,13 +3766,14 @@ curl -s -X POST http://127.0.0.1:3060/reset
 
 Expected: the server log shows `[tapo] Turning off` … `Reset complete` and the heater comes back.
 
-- [ ] **Step 5: 24 h production memory after cutover**
+- [ ] **Step 5: 30-minute production memory check after cutover** (same poller as Task 1, so the numbers compare directly)
 
 ```bash
-nohup eval/memwatch.sh "$(pgrep -f '^\./awh')" 86400 60 eval/results/after/mem-prod-24h.csv >/dev/null 2>&1 &
+eval/poll.sh 3060 1800 & eval/memwatch.sh "$(pgrep -f '^\./awh')" 1800 5 eval/results/after/mem-prod-active.csv; wait
+python_env/bin/python eval/mem_summary.py eval/results/before/mem-active.csv eval/results/after/mem-prod-active.csv
 ```
 
-Add its summary to `eval/REPORT.md` next to `before/mem-48h.csv`, then commit.
+Add both lines to `eval/REPORT.md`'s summary, then commit.
 
 - [ ] **Step 6: Rollback, if needed**
 
