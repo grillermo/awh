@@ -1,0 +1,209 @@
+{
+ "model": "apple_vision_fast",
+ "hits": 0,
+ "total": 33,
+ "median_ms": 46.6,
+ "p95_ms": 51.1,
+ "max_ms": 58.8,
+ "load_s": 0.0,
+ "rows": [
+  {
+   "id": "digit/20261106-182954_0",
+   "text": "",
+   "ms": 44.7,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182947_5",
+   "text": "",
+   "ms": 48.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182945_4C",
+   "text": "4",
+   "ms": 58.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182929_4S",
+   "text": "",
+   "ms": 49.4,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182844_5",
+   "text": "",
+   "ms": 45.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182838_1G",
+   "text": "",
+   "ms": 44.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182831_uG",
+   "text": "",
+   "ms": 47.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182822_UG",
+   "text": "",
+   "ms": 45.0,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182818_0",
+   "text": "",
+   "ms": 45.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182755_4G",
+   "text": "",
+   "ms": 44.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182714_4C",
+   "text": "",
+   "ms": 43.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182707_UG",
+   "text": "",
+   "ms": 45.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182624_4G",
+   "text": "",
+   "ms": 47.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182548_VS",
+   "text": "",
+   "ms": 45.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182546_UL",
+   "text": "",
+   "ms": 48.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182540_UC",
+   "text": "",
+   "ms": 45.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182537_VE",
+   "text": "",
+   "ms": 47.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182513_Vt",
+   "text": "*",
+   "ms": 53.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182504_U5t",
+   "text": "*",
+   "ms": 50.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182501_V5",
+   "text": "f",
+   "ms": 45.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182455_VGt",
+   "text": "f",
+   "ms": 46.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182453_Un",
+   "text": "f",
+   "ms": 51.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182446_UGt",
+   "text": "%",
+   "ms": 47.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182444_Vst",
+   "text": "f",
+   "ms": 47.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182420_WSt",
+   "text": "f",
+   "ms": 45.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182413_Ur",
+   "text": "f",
+   "ms": 48.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182355_UG",
+   "text": "",
+   "ms": 44.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182353_Gt",
+   "text": "",
+   "ms": 44.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182351_Uft",
+   "text": "",
+   "ms": 46.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182346_HGt",
+   "text": "",
+   "ms": 45.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182344_UGt",
+   "text": "",
+   "ms": 49.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182337_U5t",
+   "text": "",
+   "ms": 47.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182335_Vt",
+   "text": "",
+   "ms": 47.7,
+   "hit": false
+  }
+ ]
+}

@@ -1,0 +1,209 @@
+{
+ "model": "tesseract_psm7_gray",
+ "hits": 1,
+ "total": 33,
+ "median_ms": 59.4,
+ "p95_ms": 74.3,
+ "max_ms": 109.1,
+ "load_s": 0.0,
+ "rows": [
+  {
+   "id": "digit/20261106-182954_0",
+   "text": "4",
+   "ms": 58.4,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182947_5",
+   "text": "",
+   "ms": 60.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182945_4C",
+   "text": "",
+   "ms": 63.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182929_4S",
+   "text": "4",
+   "ms": 64.7,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182844_5",
+   "text": "",
+   "ms": 64.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182838_1G",
+   "text": "4",
+   "ms": 62.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182831_uG",
+   "text": "",
+   "ms": 59.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182822_UG",
+   "text": "",
+   "ms": 59.4,
+   "hit": false
+  },
+  {
+   "id": "digit/20261106-182818_0",
+   "text": "",
+   "ms": 61.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182755_4G",
+   "text": "",
+   "ms": 59.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182714_4C",
+   "text": "",
+   "ms": 60.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182707_UG",
+   "text": "4",
+   "ms": 59.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182624_4G",
+   "text": "45",
+   "ms": 58.6,
+   "hit": true
+  },
+  {
+   "id": "text/20261106-182548_VS",
+   "text": "",
+   "ms": 58.5,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182546_UL",
+   "text": "",
+   "ms": 59.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182540_UC",
+   "text": "",
+   "ms": 59.6,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182537_VE",
+   "text": "",
+   "ms": 59.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182513_Vt",
+   "text": "",
+   "ms": 58.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182504_U5t",
+   "text": "",
+   "ms": 59.8,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182501_V5",
+   "text": "",
+   "ms": 59.7,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182455_VGt",
+   "text": "",
+   "ms": 74.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182453_Un",
+   "text": "",
+   "ms": 109.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182446_UGt",
+   "text": "",
+   "ms": 86.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182444_Vst",
+   "text": "",
+   "ms": 59.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182420_WSt",
+   "text": "",
+   "ms": 61.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182413_Ur",
+   "text": "",
+   "ms": 59.4,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182355_UG",
+   "text": "",
+   "ms": 60.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182353_Gt",
+   "text": "",
+   "ms": 58.3,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182351_Uft",
+   "text": "",
+   "ms": 58.9,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182346_HGt",
+   "text": "",
+   "ms": 59.2,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182344_UGt",
+   "text": "",
+   "ms": 59.1,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182337_U5t",
+   "text": "",
+   "ms": 58.0,
+   "hit": false
+  },
+  {
+   "id": "text/20261106-182335_Vt",
+   "text": "",
+   "ms": 57.8,
+   "hit": false
+  }
+ ]
+}

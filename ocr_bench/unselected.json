@@ -1,0 +1,191 @@
+[
+ {
+  "id": "empty/20261107-122908_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-122908_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-122908_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-121904_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-121904_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-121904_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-120747_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-120747_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-120747_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-115159_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-115159_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-115159_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-114121_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-114121_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-114121_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-113053_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-113053_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-113053_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261107-113018_J",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261107-113018_J_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261107-113018_J_raw.png",
+  "easyocr_live": "J",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-111732_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-111732_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-111732_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-110512_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-110512_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-110512_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261107-110408_N",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261107-110408_N_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261107-110408_N_raw.png",
+  "easyocr_live": "N",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-105145_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-105145_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-105145_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-104059_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-104059_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-104059_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-102453_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-102453_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-102453_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261107-101342_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-101342_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261107-101342_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182725_I-IBB",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182725_I-IBB_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182725_I-IBB_raw.png",
+  "easyocr_live": "I IBB",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182333_VGt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182333_VGt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182333_VGt_raw.png",
+  "easyocr_live": "VGt",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182328_Ut",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182328_Ut_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182328_Ut_raw.png",
+  "easyocr_live": "Ut",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182326_It",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182326_It_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182326_It_raw.png",
+  "easyocr_live": "It",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182320_W",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182320_W_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182320_W_raw.png",
+  "easyocr_live": "W",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182317_IU",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182317_IU_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182317_IU_raw.png",
+  "easyocr_live": "IU",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182057_M",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182057_M_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182057_M_raw.png",
+  "easyocr_live": "M",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182041_Wt",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182041_Wt_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182041_Wt_raw.png",
+  "easyocr_live": "Wt",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182032_W",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182032_W_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182032_W_raw.png",
+  "easyocr_live": "W'",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182016_I",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182016_I_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182016_I_raw.png",
+  "easyocr_live": "I",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182014_Wf",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182014_Wf_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182014_Wf_raw.png",
+  "easyocr_live": "Wf",
+  "truth": "?"
+ },
+ {
+  "id": "text/20261106-182010_W",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182010_W_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/text/20261106-182010_W_raw.png",
+  "easyocr_live": "W",
+  "truth": "?"
+ },
+ {
+  "id": "empty/20261106-181931_empty",
+  "ocr": "/Users/grillermo/c/awh/ocr_samples/empty/20261106-181931_empty_ocr.png",
+  "raw": "/Users/grillermo/c/awh/ocr_samples/empty/20261106-181931_empty_raw.png",
+  "easyocr_live": "",
+  "truth": "?"
+ }
+]
