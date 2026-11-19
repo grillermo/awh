@@ -274,3 +274,84 @@ func (c *countCam) Crop(ctx context.Context, r vision.Rect) (vision.Image, error
 	c.n.Add(1)
 	return c.fakeCam.Crop(ctx, r)
 }
+
+// blockingReset blocks inside Reset until released, like the 10 s plug wait.
+type blockingReset struct {
+	entered chan struct{}
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func newBlockingReset() *blockingReset {
+	return &blockingReset{entered: make(chan struct{}, 4), release: make(chan struct{})}
+}
+
+func (b *blockingReset) Reset(context.Context) error {
+	b.calls.Add(1)
+	b.entered <- struct{}{}
+	<-b.release
+	return nil
+}
+
+func newTestWith(t *testing.T, rs Resetter) http.Handler {
+	t.Helper()
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "db.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(fakeCam{}, fakeOCR{"E1"}, rs, st, nil, Options{SamplesDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s.Handler()
+}
+
+func TestResetIsSingleFlight(t *testing.T) {
+	br := newBlockingReset()
+	h := newTestWith(t, br)
+	first := make(chan int, 1)
+	go func() { code, _ := do(t, h, "POST", "/reset", ""); first <- code }()
+	<-br.entered
+	code, out := do(t, h, "POST", "/reset", "")
+	if code != 409 || out["ok"] != false || out["error"] != "reset already in progress" {
+		t.Fatalf("%d %v", code, out)
+	}
+	close(br.release)
+	if c := <-first; c != 200 {
+		t.Fatalf("first reset: %d", c)
+	}
+	if n := br.calls.Load(); n != 1 {
+		t.Fatalf("Reset ran %d times", n)
+	}
+	// The guard is released afterwards.
+	if code, _ := do(t, h, "POST", "/reset", ""); code != 200 {
+		t.Fatalf("after: %d", code)
+	}
+}
+
+func TestResetRejectsCrossOrigin(t *testing.T) {
+	_, rs, h := newTest(t, false)
+	post := func(origin string) int {
+		req := httptest.NewRequest("POST", "http://kiosk.local:3060/reset", nil)
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code
+	}
+	for _, o := range []string{"http://evil.example", "null", "http://kiosk.local:9999", "https://kiosk.local:3060x"} {
+		if c := post(o); c != 403 {
+			t.Errorf("origin %q: %d", o, c)
+		}
+	}
+	if rs.n != 0 {
+		t.Fatal("cross-origin POST reset the plug")
+	}
+	for _, o := range []string{"", "http://kiosk.local:3060"} {
+		if c := post(o); c != 200 {
+			t.Errorf("origin %q: %d", o, c)
+		}
+	}
+}

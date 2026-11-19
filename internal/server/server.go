@@ -12,6 +12,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -71,6 +72,8 @@ type Server struct {
 
 	frameMu sync.Mutex
 	frame   frame
+
+	resetting atomic.Bool // single-flight guard for /reset
 
 	lastReq atomic.Int64 // unix nanos of the last /last_frame
 	shadow  *shadowRecorder
@@ -451,7 +454,27 @@ func (s *Server) updateCrop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, obj{"ok": true, "crop": c[:]})
 }
 
+// sameOrigin is true when the request has no Origin header (curl, the kiosk
+// page's same-origin POSTs in some browsers) or the Origin host is this server's.
+func sameOrigin(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	return err == nil && u.Host != "" && u.Host == r.Host
+}
+
 func (s *Server) resetPlug(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		fail(w, 403, "cross-origin request refused")
+		return
+	}
+	if !s.resetting.CompareAndSwap(false, true) {
+		fail(w, 409, "reset already in progress")
+		return
+	}
+	defer s.resetting.Store(false)
 	// Never let a dropped client connection cut a reset short: that could
 	// leave the heater off.
 	resetCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Minute)
